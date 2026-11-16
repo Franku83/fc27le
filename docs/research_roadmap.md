@@ -4,12 +4,12 @@
 
 | Layer | Status | Evidence |
 | --- | --- | --- |
-| Process discovery | **done** | `docs/evidence/discover.json` |
-| Bounded memory reader | **done** | `docs/evidence/selftest.json` |
-| Module/PE/section resolution | **done** | `docs/evidence/probe.json` |
-| Build identity | **done** | SHA-256 match in `docs/evidence/probe.json` |
+| Process discovery | **done** | `docs/evidence/public_summary.json` |
+| Bounded memory reader | **done** | `docs/evidence/public_summary.json` |
+| Module/PE/section resolution | **done** | `docs/evidence/public_summary.json` |
+| Build identity | **done** | SHA-256 match in `docs/evidence/public_summary.json` |
 | Verified anchor scan | **done** | event dispatcher at `0x141CD3B5C`; DB service at `0x147242D5E` |
-| Database service / table manager | **done (read-only)** | `fc27le db`, `docs/research/db_interface.md` |
+| Database service / table manager | **done (read-only)** | `fc27le db`, `docs/architecture.md` |
 | Players table descriptor | **resolved/verified** | `players` = `CZUM`, 152 fields, `db --metadata` |
 | Player record layout | **verified** | 152/152 field widths; 22,098 slots; 27,000 capacity; 284 invalid markers |
 | Player enumeration | **implemented read-only** | `fc27le players --metadata`; 21,814 valid rows |
@@ -41,7 +41,7 @@ validated against the live table manager:
 * **268 / 268** field-width sets matched;
 * **`players` = `CZUM`**: 152 fields, 156-byte records, mask 1247, 1244 field
   bits + 4 padding bits, non-zero live data pointer;
-* **`teamplayerlinks` = `RrqT`**: 16 fields, 16-byte records.
+* **`teamplayerlinks` = `<table-4cc>`**: 16 fields, 16-byte records.
 
 The descriptor is resolved. The CLI exposes this as
 `fc27le db <pid> --metadata FILE`; the proprietary XML is not bundled.
@@ -116,13 +116,13 @@ These are strings and metadata, not offsets:
 | `ContentDB LWSQL`, `queryCrowdsDb LWSQL`, `querySpaDb LWSQL` | first at file `0xA95CBD8`; multiple locations | the game's content DB layer is named `LWSQL` |
 | 25 `players.*` field literals (`players.firstnameid`, `players.lastnameid`, `players.overallrating`, `players.potential`, ...) | string block at file `0xAB5AB28` / VA `0x14AB5AB28` | field names used by game code |
 | PE sections `typeinfo` and `fieldinf` | section table | section names suggest reflection/RTTI metadata |
-| `lua/scripts/list_players.lua` + `lua/DOC.MD` | previous project | API-level player access: `LE.db:GetTable("players")`, `GetRecordFieldValue(record, "playerid")` |
+| `the documented Lua example` + `lua/DOC.MD` | previous project | API-level player access: `LE.db:GetTable("players")`, `GetRecordFieldValue(record, "playerid")` |
 | DB service pattern | file `0x724235E` / RVA `0x7242D5E` / live VA `0x147242D5E` | unique anchor to the game table manager (WP1) |
 | Service registry key `0x0AE932D0` | game service object | resolves to a manager with 2 databases and 273 table descriptors |
 | Table header invariant | table `+0x44` / `+0x48` | `record_size*8-1` bit mask; confirmed for all 273 tables |
 | `data/db/fifa_ng_db-meta.xml` | CFS hash `1160535545681411833` | full-name → 4CC map loaded by Live Editor (missing link) |
 | `players` 4CC | metadata + live validation | **`CZUM`**, 152 fields, 156-byte records, mask 1247 |
-| `teamplayerlinks` 4CC | metadata + live validation | **`RrqT`**, 16 fields, 16-byte records |
+| `teamplayerlinks` 4CC | metadata + live validation | **`<table-4cc>`**, 16 fields, 16-byte records |
 | `GetTeamIdFromPlayerId` / `GetPlayerName` | DLL `0x3DEE00` / `0x3DDC70` | career-object accessors (`club_team_id`), **not** the DB table manager; do not use as table evidence |
 
 A field name in a string block does **not** give a field offset. SQL column order
@@ -141,7 +141,7 @@ contains two databases (`g_db`, `a_mx`) and 273 table descriptors. Live Editor's
 with `internal function`; `internal function` applies that metadata to the game tables.
 
 Evidence and the full function map are in
-[`docs/research/db_interface.md`](research/db_interface.md). The implementation
+the architecture notes. The implementation
 is `fc27le db` (`crates/fc27/src/db_service.rs`).
 
 **What remains from WP1:** nothing for the interface itself. The name→4CC
@@ -169,7 +169,7 @@ other distribution; a failure must be treated as an unsupported build.
 **Result:** with a caller-supplied FC 27 metadata XML, `players` resolves to
 **`CZUM`**. The live descriptor has 152 fields, 156-byte records, mask 1247,
 1244 field bits plus 4 padding bits and a non-zero data pointer. All 152 field
-widths match the metadata. `teamplayerlinks` resolves to `RrqT` (16 fields).
+widths match the metadata. `teamplayerlinks` resolves to `<table-4cc>` (16 fields).
 Across the full descriptor, 268/268 metadata tables matched live descriptors and
 268/268 field-width sets matched.
 
@@ -227,7 +227,7 @@ naturally varying records or a save copy).
 
 **Goal:** resolve first/last/common names safely.
 
-**Status (2026-11-16): DONE.** `playernames` (`BGwe`) has 12-byte rows:
+**Status (2026-11-16): DONE.** `playernames` (`<table-4cc>`) has 12-byte rows:
 `u32 string-pool offset` at `+0x00`, `u16 nameid` at `+0x04`,
 `u16 commentaryid` at `+0x06`, `u32 zero` at `+0x08`. The pool at descriptor
 `+0x38` starts with a shared 138-node breadth-first Huffman tree, followed by
@@ -326,7 +326,7 @@ No fuzzing against the live process. No writes, no function calls, no hooks.
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
 | Game title update changes code/data | anchors break | fail closed; re-verify anchors; update build table |
-| Distribution differs (other distribution vs third-party build) | layout may differ | record hashes; never generalize without verification |
+| Distribution or version differs | layout may differ | record hashes; never generalize without verification |
 | ASLR / relocation | VA math breaks | always use mapped base, never assume preferred base |
 | Target not traceable | reads denied | report permission error; no privilege escalation |
 | Indirect/virtual DB access | static anchor hard | use string xrefs + vtable analysis; do not guess |

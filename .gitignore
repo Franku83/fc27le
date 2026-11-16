@@ -1,4 +1,35 @@
 /target
 **/*.rs.bk
+
+# Crash dumps and packet captures
 *.pcap
 *.dmp
+
+# Game binaries, archives and proprietary data
+*.exe
+*.dll
+*.sys
+*.asi
+*.bin
+*.dat
+*.sav
+*.save
+*.db
+*.sqlite
+*.sqlite3
+fifa_ng_db-meta.xml
+**/fifa_ng_db-meta.xml
+data/db/
+pfx/
+drive_c/
+
+# Local environment and logs
+.env
+.env.*
+*.log
+
+# Editor and OS files
+.vscode/
+.idea/
+*.swp
+.DS_Store

@@ -14,53 +14,41 @@ reads; the build hash and the executable path are stable.
 | Property | Value |
 | --- | --- |
 | Distribution | CachyOS (Arch-like, rolling) |
-| Kernel | `7.3.4-1-cachyos` (`#1 SMP PREEMPT_DYNAMIC Fri, 13 Nov 2026`) |
+| Kernel | `7.3.4-1-cachyos` |
 | Architecture | x86_64 |
-| Game volume | `/dev/nvme1n1p1`, btrfs, mounted at `/path/to/volume` |
-| Game directory | `/path/to/volume/juegos/third-party build/Games/EA SPORTS FC 27-4080/EA SPORTS FC 27` |
 | Session | Wayland (`DISPLAY=:0`, `PROTON_ENABLE_WAYLAND=1`) |
+| Game installation | local copy; installation path and distribution metadata omitted |
+| Privileges | same unprivileged user; no root, no capabilities, no ptrace escalation |
 
 ## 2. Process hierarchy
 
-The game was launched by the third-party launcher, not by `steam.exe` and not
-by the Live Editor launcher.
+`FC27.exe` ran under a Wine/Proton launcher. The exact launcher, installation
+path and distribution are intentionally omitted from this public repository.
+The observed tree had the usual shape:
 
 ```text
-systemd (user, pid 1039)
-  └─ java -jar /usr/share/java/OFMELauncher.jar (pid 15253)
-      └─ srt-bwrap ... (pid 19126)
-          └─ pv-adverb ... proton run ...FC27.exe (pid 19188)
-              └─ FC27.exe (pid 19349)
+launcher
+  └─ pressure-vessel / Proton wrapper
+      └─ FC27.exe
+          └─ Wine services
 ```
 
-Helper processes in the same Wine prefix:
-
-| PID (snapshot) | comm | Role |
-| ---: | --- | --- |
-| 19223 | `steam.exe` | Wine Steam shim, started with FC27.exe as an argument |
-| 19225 | `wineserver` | Wine server |
-| 19232, 19280 | `winedevice.exe` | Wine device services |
-| 19229, 19242, 19273, 19298, 19304, 19329, 19338 | `services.exe`, `plugplay.exe`, `svchost.exe`, `lsass.exe`, `explorer.exe`, `rpcss.exe`, `tabtip.exe` | Wine session services |
-
-`fc27le discover` deliberately does **not** treat the Wine service processes or
-the `steam.exe` shim as the game. Only PID 19349 scores >= 100.
+`fc27le discover` scores `FC27.exe` by process name, command line, Wine loader
+path and Wine environment. Wine service processes and the `steam.exe` shim are
+classified as helpers, never as the game.
 
 ## 3. Game process
 
 | Property | Value |
 | --- | --- |
 | `/proc/<pid>/comm` | `FC27.exe` |
-| `/proc/<pid>/cmdline` | `Z:\mnt\volume\juegos\third-party build\Games\EA SPORTS FC 27-4080\EA SPORTS FC 27\FC27.exe` |
-| `/proc/<pid>/cwd` | `/path/to/volume/juegos/third-party build/Games/EA SPORTS FC 27-4080/EA SPORTS FC 27` |
-| `/proc/<pid>/exe` | `/path/to/protons/GE-Proton11-12-x86_64/files/lib/wine/i386-unix/wine64-preloader` |
-| Parent | `pv-adverb` (pid 19188) |
-| Threads | 89 (snapshot) |
-| `VmRSS` | ~2.0 GiB (snapshot) |
-| `VmSize` | ~8.5 GiB (snapshot) |
-| UID / GID | 1000 / 1000 |
+| `/proc/<pid>/cmdline` | `Z:\path\to\FC27.exe` |
+| `/proc/<pid>/cwd` | `<game directory>` |
+| `/proc/<pid>/exe` | `<proton>/files/lib/wine/i386-unix/wine64-preloader` |
+| Threads | dynamic (snapshot only) |
+| UID / GID | same user as FC27LE |
 | Effective capabilities | `CapEff = 0` |
 | `NoNewPrivs` | 1 |
-| Seccomp | disabled (`Seccomp: 0`) |
 
 `/proc/<pid>/exe` resolves to the Wine preloader for every Wine process, so the
 PE image path must come from `/proc/<pid>/maps` and the command line, not from
@@ -70,9 +58,10 @@ PE image path must come from `/proc/<pid>/maps` and the command line, not from
 
 | Property | Value |
 | --- | --- |
-| Runtime | GE-Proton11-12 (`/path/to/protons/GE-Proton11-12-x86_64`) |
-| `WINEPREFIX` | `/path/to/.local/share/third-party launcher/prefixes/FC27/pfx/` |
-| `STEAM_COMPAT_DATA_PATH` | `/path/to/.local/share/third-party launcher/prefixes/FC27` |
+| Runtime | GE-Proton11-12 |
+| Proton root | `<proton root>` |
+| Wine prefix | `<wine prefix>` |
+| `STEAM_COMPAT_DATA_PATH` | `<compat data path>` |
 | Loader | `files/lib/wine/i386-unix/wine64-preloader` |
 | Image reservation | `WINEPRELOADRESERVE=140000000-14fa79000` |
 
@@ -82,7 +71,7 @@ Selected environment variables observed in the game process:
 | --- | --- |
 | `WINEDEBUG` | `-all` (Wine logging disabled) |
 | `WINEESYNC` / `WINEFSYNC` / `WINENTSYNC` | `1` / `1` / `1` |
-| `WINEDLLOVERRIDES` | native overrides for `d3d11`, `dxgi`, `d3d12`, `d3d12core`, `steam_api64`, ... |
+| `WINEDLLOVERRIDES` | native overrides for graphics and API DLLs |
 | `WINEDLLPATH` | GE-Proton `vkd3d` + `wine` libraries |
 | `LD_PRELOAD` | pressure-vessel `gameoverlayrenderer.so` |
 | `PROTON_ENABLE_WAYLAND` | `1` |
@@ -90,9 +79,8 @@ Selected environment variables observed in the game process:
 | `WINE_LARGE_ADDRESS_AWARE` | `1` |
 | `DXVK_LOG_LEVEL` / `VKD3D_DEBUG` | `none` |
 
-The observed session uses the third-party build distribution (`third-party-module.dll`
-loaded, `.thirdparty` PE section present). The previous research notes that the
-other distribution file set was not tested; no conclusion about other distribution is made here.
+Distribution-specific files are not described or redistributed. The measured
+build hash is listed below; other copies may differ.
 
 ## 5. Build identity
 
@@ -110,7 +98,7 @@ other distribution file set was not tested; no conclusion about other distributi
 | Sections | 16 |
 
 This hash matches the build recorded in
-`prior research project/reports/runtime_evidence.md`.
+`prior research notes/runtime_evidence.md`.
 
 ## 6. Memory layout
 
@@ -182,17 +170,16 @@ entries:
 | Base | Module |
 | --- | --- |
 | `0x140000000` | `FC27.exe` |
-| `0x6FFFFD810000` | `third-party-module.dll` |
 | `0x6FFFFFE70000` | `kernel32.dll` (Wine builtin) |
 | `0x6FFFFFEF0000` | `ntdll.dll` (Wine builtin) |
 | `0x6FFFFF3F0000` | `user32.dll` (Wine builtin) |
 | `0x7F8BFD00E000` | `ntdll.so` (native Wine library) |
 
-`proprietary editor DLL` and `activation module` were **not** present in this session.
+Only the game image and standard Wine modules are relevant to this project.
 
 ### 6.3 Runtime database interface
 
-`fc27le db 19349` verified the game's database service path read-only:
+`fc27le db <pid>` verified the game's database service path read-only:
 
 | Item | Snapshot value |
 | --- | --- |
@@ -236,8 +223,8 @@ See `docs/research/db_metadata.md`, `docs/research/player_storage.md` and
 At `ptrace_scope=1`, Yama normally restricts attachment to descendants. The game
 is not a descendant of the inspection process, yet these reads succeeded:
 
-* `/proc/19349/maps`, `/proc/19349/status`, `/proc/19349/environ` — readable;
-* `/proc/19349/mem` opened `O_RDONLY`; the PE header (`MZ`) and anchor bytes were
+* `/proc/<pid>/maps`, `/proc/<pid>/status`, `/proc/<pid>/environ` — readable;
+* `/proc/<pid>/mem` opened `O_RDONLY`; the PE header (`MZ`) and anchor bytes were
   read successfully.
 
 Control observations on the same host and user:
@@ -282,7 +269,7 @@ environment property, not a guarantee of this tool.
 ## 8. Reproduction commands
 
 ```bash
-cd "/path/to/fc27 le linux"
+cd fc27le
 cargo build --release
 
 ./target/release/fc27le selftest

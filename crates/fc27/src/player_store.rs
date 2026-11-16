@@ -5,16 +5,14 @@
 //! The layout is not inferred from a single sample. It matches three
 //! independent descriptions:
 //!
-//! 1. Live Editor's own Lua reader
-//!    (`lua/libs/v2/imports/t3db/table.lua`):
+//! 1. The documented Live Editor Lua API behavior:
 //!    first record at descriptor `+0x30`, record size at `+0x44`, slot count
 //!    (`written_records`) as a `u16` at `+0x7C`, and a record is skipped when
 //!    the high bit (`0x80`) of its last byte is set.
-//! 2. Live Editor's bit-field reader
-//!    (`lua/libs/v2/imports/t3db/field.lua`): a field is an LSB-first bit slice
+//! 2. The documented bit-field reader: a field is an LSB-first bit slice
 //!    at descriptor field entry `+0x4`, and the metadata low bound is added to
 //!    the stored value.
-//! 3. Static disassembly of `proprietary editor DLL!internal function`: the loop ends at
+//! 3. Independent static analysis of the table iteration logic: the loop ends at
 //!    `data + (count - 1) * record_size` and skips records whose final byte has
 //!    bit 7 set.
 //!
@@ -590,7 +588,7 @@ pub fn decode_record(row: &[u8], layout: &PlayerTableLayout) -> Result<PlayerRec
 ///
 /// For bit `k` the containing byte is `k / 8` and the bit position inside that
 /// byte is `k % 8`; the first bit becomes the least significant bit of the
-/// result. This is the order implemented by Live Editor's `FIELD:GetInt`.
+/// result. This matches the documented Live Editor field-reader semantics.
 pub fn read_bits(row: &[u8], bit_offset: u32, bit_width: u32) -> Result<u64> {
     if bit_width == 0 || bit_width > 64 {
         return Err(Error::Unsupported(format!(

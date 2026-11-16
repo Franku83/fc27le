@@ -24,13 +24,10 @@ build.
 | Game | EA SPORTS FC 27 |
 | Executable | `FC27.exe`, 235,283,352 bytes |
 | SHA-256 | `d81a7a7465718fddcf1eeffde1ee0f952cab69b2c4771ad2aca29c381cd9d5e9` |
-| Distribution | third-party build (`.thirdparty` section, `third-party-module.dll` loaded) |
-| Runtime | GE-Proton11-12 (`/path/to/protons/GE-Proton11-12-x86_64`) |
-| Prefix | `/path/to/.local/share/third-party launcher/prefixes/FC27/pfx/` |
+| Runtime | GE-Proton11-12 |
 | Loader | `files/lib/wine/i386-unix/wine64-preloader` |
 | Image base | `0x140000000` (preferred, not relocated) |
 | Image size | `0xFA79000` |
-| Session launch | third-party launcher, not the Live Editor launcher |
 
 ## 3. Game-build compatibility
 
@@ -38,8 +35,7 @@ Builds are identified by SHA-256, never assumed:
 
 | Build hash | Label | Status |
 | --- | --- | --- |
-| `d81a7a7465718fddcf1eeffde1ee0f952cab69b2c4771ad2aca29c381cd9d5e9` | third-party build, 2026-11-12 | **tested**: discovery, modules, anchors, DB service path |
-| other distribution release | — | **not tested**; the previous reports also lacked the other distribution file set |
+| `d81a7a7465718fddcf1eeffde1ee0f952cab69b2c4771ad2aca29c381cd9d5e9` | tested FC 27 build, 2026-11-12 | **tested**: discovery, modules, anchors, DB service path |
 | Any other hash | — | unknown: expect anchor mismatch; re-research before use |
 
 The tool reports `known_build: null` for an unknown hash. A hash match only
@@ -77,7 +73,6 @@ Not guaranteed:
 * the preferred image base on other builds (the tool always uses the mapped base);
 * the exact set of `memfd` and anonymous mappings;
 * module enumeration order or count;
-* the presence of `proprietary editor DLL` or `activation module`.
 
 If Wine changes any of these, the tool should fail with a clear error or an
 anchor mismatch rather than silently misread.
@@ -199,13 +194,12 @@ Stop button cancelled an infinite loop (`while true do end`) with
 ## 8. Anti-cheat / DRM / online boundary
 
 * The project does not bypass, patch, emulate or interact with EA Anti-Cheat,
-  `activation module`, Denuvo or any licensing component.
+  activation/licensing components or any protection mechanism.
 * It does not inject code, install hooks, or change game memory.
-* It records whether anti-cheat/activation modules are loaded, and nothing more.
 * Use offline and single-player only. Do not run it against online modes or
   services.
-* The previous Live Editor compatibility patch is **out of scope** and is not
-  reproduced here.
+* Integration with, or patching of, third-party editor binaries is out of
+  scope and is not reproduced here.
 
 ## 9. Versioning and support policy
 

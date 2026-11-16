@@ -23,6 +23,4 @@ pub mod players;
 pub mod profile;
 pub mod table_access;
 
-pub use profile::{
-    PROTECTION_MODULE, THIRD_PARTY_MODULE, EAAC_MODULE, EDITOR_DLL, GAME_EXE, KNOWN_BUILDS, KnownBuild,
-};
+pub use profile::{GAME_EXE, KNOWN_BUILDS, KnownBuild};

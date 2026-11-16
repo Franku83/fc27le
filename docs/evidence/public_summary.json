@@ -1,0 +1,86 @@
+{
+  "project": "FC27LE",
+  "captured_at": "2026-11-16",
+  "tested_environment": {
+    "distribution": "CachyOS",
+    "desktop": "KDE Plasma 6.8.3 / KWin/Wayland",
+    "application_transport": "XWayland",
+    "runtime": "GE-Proton11-12",
+    "rust": "stable (1.100.0 during verification)"
+  },
+  "build": {
+    "executable": "FC27.exe",
+    "size_bytes": 235283352,
+    "sha256": "d81a7a7465718fddcf1eeffde1ee0f952cab69b2c4771ad2aca29c381cd9d5e9",
+    "label": "Tested FC 27 build, 2026-11-12",
+    "hash_is_identity_only": true
+  },
+  "metadata": {
+    "user_supplied": true,
+    "redistributed": false,
+    "tables_matched": 268,
+    "tables_total": 268,
+    "fixed_row_layouts_verified": 263,
+    "focus_table": "players",
+    "focus_verified": true
+  },
+  "players": {
+    "slots": 22098,
+    "capacity": 27000,
+    "invalid_markers": 284,
+    "valid_players": 21814
+  },
+  "names": {
+    "players_with_names": 21814,
+    "players_without_names": 0,
+    "name_errors": 0,
+    "sources": [
+      "compressed playernames pool",
+      "inline dcplayernames IDs 46000+",
+      "editedplayernames overrides"
+    ]
+  },
+  "gui": {
+    "binary": "fc27le-gui",
+    "window_mode": "external floating window",
+    "search_by_name": true,
+    "search_by_id": true,
+    "sort_columns": ["name", "id", "OVR", "POT", "height", "weight"],
+    "detail_panel": true,
+    "refresh_reconnect": true,
+    "lua_console": true,
+    "f9_hide_show_verified": true,
+    "unix_socket_toggle_verified": true,
+    "always_on_top_default": false,
+    "true_injected_overlay_claimed": false
+  },
+  "lua": {
+    "engine": "Lua 5.4 via mlua (lua54, vendored)",
+    "tables_exposed": 268,
+    "table_name": "players",
+    "written_records": 22098,
+    "valid_records_scanned": 21814,
+    "message_box_verified": true,
+    "stop_cancelled_infinite_loop": true,
+    "write_operations_implemented": false,
+    "event_sources_implemented": false
+  },
+  "automated_tests": {
+    "cargo_fmt_check": "pass",
+    "cargo_clippy_all_targets": "0 warnings",
+    "cargo_test_workspace": {
+      "passed": 78,
+      "failed": 0
+    },
+    "release_build": "pass"
+  },
+  "publication_exclusions": [
+    "game executables and archives",
+    "metadata XML and extracted table dumps",
+    "player memory dumps and full name pools",
+    "raw decompiler exports and pseudocode",
+    "local filesystem paths and session addresses",
+    "screenshots containing game data or distribution labels",
+    "game saves and Proton prefixes"
+  ]
+}

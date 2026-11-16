@@ -110,7 +110,7 @@ LinuxProcess::modules()
 ```text
 probe(pid)
   -> process metadata + Wine context + policy
-  -> modules of interest (FC27.exe, proprietary editor DLL, activation module, ...)
+  -> module of interest (FC27.exe)
   -> build identity (size, optional SHA-256, PE metadata)
   -> anchor verification (bounded scan of executable PE sections)
   -> observations with confidence + explicit limitations
@@ -251,14 +251,13 @@ The current registry contains two anchors:
 * the game-event dispatcher from `reports/press_any_key_analysis.md` §2.4,
   independently re-verified against the on-disk executable (unique hit at file
   offset `0x1CD315C`) and live memory (VA `0x141CD3B5C`);
-* the database service-object initializer from Live Editor's
-  `internal function`, unique at file offset `0x724235E`, RVA `0x7242D5E`, verified
-  live at VA `0x147242D5E`.
+* the database service-object initializer, unique at file offset `0x724235E`,
+  RVA `0x7242D5E`, verified live at VA `0x147242D5E`.
 
 ## 9. Database service path (WP1)
 
-`fc27_game::db_service` verifies the game-side path used by Live Editor's
-`DatabaseManager` without calling a game function:
+`fc27_game::db_service` verifies the game-side database path without calling a
+game function:
 
 ```text
 pattern (RVA 0x7242D5E)
@@ -280,9 +279,8 @@ non-empty table list.
 The table-manager layer is not a player resolver: it exposes 4CC table
 shortnames and a record layout header (`+0x44` record size in bytes, `+0x48`
 `record_size*8-1` bit mask, `+0x4c` flags, `+0x82` field count, `+0x84`
-16-byte field entries). The full-name -> 4CC mapping is loaded by Live Editor
-from `data/db/fifa_ng_db-meta.xml` through CFS; no verified name map was found
-in the game process.
+16-byte field entries). The full-name -> 4CC mapping comes from a caller-supplied metadata XML;
+no verified name map is bundled with the game process.
 
 `fc27_game::db_metadata` parses a caller-supplied descriptor and validates it
 against the live manager. On the tested build, 268/268 metadata tables matched
@@ -298,7 +296,7 @@ byte-identical snapshots and emits the verified numeric fields plus the three
 name IDs. The metadata XML is never bundled.
 
 `fc27_game::name_pool` resolves those name IDs from the live database:
-`playernames` (`BGwe`) is a 12-byte row with a u32 pool offset; the pool at
+`playernames` (`<table-4cc>`) is a 12-byte row with a u32 pool offset; the pool at
 descriptor `+0x38` starts with a 138-node breadth-first Huffman tree, followed
 by length-prefixed MSB-first bitstreams (UTF-8 output). IDs 46000+ use
 `dcplayernames` inline strings, and `editedplayernames` overrides names by

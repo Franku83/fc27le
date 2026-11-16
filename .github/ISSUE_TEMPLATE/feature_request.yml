@@ -1,0 +1,54 @@
+name: Feature request
+description: Propose a read-only-safe feature or compatibility improvement
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        FC27LE is read-only and experimental. Requests for memory writes,
+        injection, hooks, anti-cheat/DRM changes or online cheating are out of
+        scope.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to do, and why is the current state insufficient?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Keep it compatible with the read-only safety boundary.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Player browser / GUI
+        - Process inspection
+        - Metadata validation
+        - Lua API compatibility
+        - Documentation
+        - Compatibility / packaging
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope confirmation
+      options:
+        - label: This request does not require game-memory writes, injection, hooks or anti-cheat/DRM changes.
+          required: true
+        - label: This request does not require uploading proprietary game data or third-party binaries.
+          required: true

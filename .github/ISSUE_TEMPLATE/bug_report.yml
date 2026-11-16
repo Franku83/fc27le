@@ -1,0 +1,86 @@
+name: Bug report
+description: Report a reproducible FC27LE defect
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing FC27LE. Do not attach game executables, metadata XML,
+        saves, memory dumps, proprietary resources or personal files. Sanitize
+        logs before pasting them.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Start FC 27 ...
+        2. Run fc27le-gui ...
+        3. Click ...
+    validations:
+      required: true
+  - type: input
+    id: fc27le_version
+    attributes:
+      label: FC27LE version or commit
+      placeholder: "v0.1.0-alpha / commit ABC1234"
+    validations:
+      required: true
+  - type: input
+    id: fc27_sha
+    attributes:
+      label: FC27.exe SHA-256
+      description: Hash of the tested executable. Do not upload the executable.
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: Linux distribution and version
+    validations:
+      required: true
+  - type: input
+    id: desktop
+    attributes:
+      label: Desktop environment, compositor and session type
+      placeholder: "KDE Plasma 6.8.3, KWin/Wayland, XWayland"
+    validations:
+      required: false
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU and driver
+      placeholder: "AMD/NVIDIA/Intel, driver version"
+    validations:
+      required: false
+  - type: input
+    id: proton
+    attributes:
+      label: Proton/Wine version
+      placeholder: "GE-Proton11-12"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs or error output
+      description: Remove local paths, PIDs, player data and other personal or game data.
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: boundary
+    attributes:
+      label: Publication boundary
+      options:
+        - label: I have not attached game files, proprietary resources, saves or memory dumps.
+          required: true
+        - label: I have not included credentials, tokens or personal files.
+          required: true

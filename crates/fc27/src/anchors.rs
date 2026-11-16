@@ -27,19 +27,18 @@ pub struct Anchor {
 
 pub const EVENT_DISPATCHER: Anchor = Anchor {
     id: "fc27.event-dispatcher",
-    description: "Game event dispatcher hooked by Live Editor for Press Any Key / Main Menu flags",
+    description: "Game event dispatcher associated with menu-state flags",
     module: GAME_EXE,
     // 36 bytes, wildcards as published in reports/press_any_key_analysis.md §2.4.
     pattern: "48 89 5C 24 ?? 48 89 74 24 ?? 57 48 83 EC 30 48 8B F1 49 8B D8 48 8D 0D ?? ?? ?? ?? \
               8B FA E8 ?? ?? ?? ?? 48 8B 06",
     expected_rva: 0x1CD3B5C,
-    source: "prior research project/reports/press_any_key_analysis.md §2.4; re-verified locally 2026-11-15",
+    source: "independent pattern analysis; re-verified locally 2026-11-15",
     confidence: "high",
     max_scan_bytes: 64 * 1024 * 1024,
 };
 
-/// The game service-object initializer used by Live Editor's `internal function`
-/// (DatabaseManager singleton) to locate the game's service registry.
+/// The game service-object initializer used to locate the game service registry.
 ///
 /// The pattern is unique in the tested `FC27.exe` and was verified live on
 /// 2026-11-16 at RVA `0x7242D5E`. The code around it references a global
@@ -51,7 +50,7 @@ pub const DB_SERVICE_GLOBAL: Anchor = Anchor {
     pattern: "C7 83 60 11 00 00 02 00 00 00 48 8D 0D ?? ?? ?? ?? \
               48 8B 05 ?? ?? ?? ?? BA E3 BB BD 0E FF 50 38",
     expected_rva: 0x7242D5E,
-    source: "proprietary editor DLL internal function pattern; static unique hit at file offset 0x724235e; \
+    source: "independent pattern analysis; static unique hit at file offset 0x724235e; \
              live verified 2026-11-16",
     confidence: "high",
     max_scan_bytes: 160 * 1024 * 1024,

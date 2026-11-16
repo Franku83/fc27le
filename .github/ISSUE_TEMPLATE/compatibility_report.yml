@@ -1,0 +1,93 @@
+name: Compatibility report
+description: Report a tested FC 27 / Proton / Linux combination
+title: "[compat] "
+labels: ["compatibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Compatibility reports help identify which builds and environments are
+        actually verified. Do not upload game executables, metadata XML, saves,
+        memory dumps or proprietary resources. Sanitize paths and logs.
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options:
+        - Works as expected
+        - Partially works
+        - Fails to start or connect
+        - Fails during player loading
+        - Fails during Lua execution
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: Linux distribution and version
+    validations:
+      required: true
+  - type: input
+    id: desktop
+    attributes:
+      label: Desktop environment, compositor and session type
+      placeholder: "KDE Plasma 6.8.3, KWin/Wayland, XWayland"
+    validations:
+      required: true
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU and driver
+      placeholder: "AMD RX 7900 XTX, Mesa 25.x"
+    validations:
+      required: true
+  - type: input
+    id: proton
+    attributes:
+      label: Proton/Wine version
+      placeholder: "GE-Proton11-12"
+    validations:
+      required: true
+  - type: input
+    id: fc27_sha
+    attributes:
+      label: FC27.exe SHA-256
+      description: Hash of the tested executable. Do not upload the executable.
+    validations:
+      required: true
+  - type: input
+    id: fc27le_version
+    attributes:
+      label: FC27LE version or commit
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: What worked and what failed
+      description: Include metadata validation, player count, names and Lua results where relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant sanitized logs
+      description: Remove local paths, PIDs, player data, credentials and personal information.
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: boundary
+    attributes:
+      label: Publication boundary
+      options:
+        - label: I have not attached game files, proprietary resources, saves or memory dumps.
+          required: true
+        - label: I understand this is an experimental alpha and no support is guaranteed.
+          required: true

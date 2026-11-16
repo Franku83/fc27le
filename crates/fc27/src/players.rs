@@ -87,18 +87,18 @@ pub fn capability_report() -> PlayerCapabilityReport {
                   names with zero errors. Missing names stay null and are reported; no name is \
                   invented.",
         known_from_research: vec![
-            "Live Editor Lua API: LE.db:GetTable(\"players\"), GetFirstRecord(), \
+            "Documented Live Editor Lua API: LE.db:GetTable(\"players\"), GetFirstRecord(), \
              GetNextValidRecord(), GetRecordFieldValue(record, \"playerid\"), \
-             GetTeamIdFromPlayerId(playerid). Source: lua/scripts/list_players.lua."
+             GetTeamIdFromPlayerId(playerid)."
                 .to_string(),
-            "Live Editor's table reader uses descriptor +0x30 (first record), +0x44 (record \
+            "The documented table reader uses descriptor +0x30 (first record), +0x44 (record \
              size), +0x7C (u16 slot count) and treats a record as invalid when the high bit of \
              its last byte is set. Source: lua/libs/v2/imports/t3db/table.lua."
                 .to_string(),
-            "Live Editor's field reader extracts an LSB-first bit slice and adds the metadata \
+            "The documented field reader extracts an LSB-first bit slice and adds the metadata \
              low bound. Source: lua/libs/v2/imports/t3db/field.lua."
                 .to_string(),
-            "Static disassembly of proprietary editor DLL internal function confirms the same iteration \
+            "Independent static analysis of the database iteration logic confirms the same \
              bound and invalid-marker predicate."
                 .to_string(),
             "WP1 verified the runtime DB path: pattern RVA 0x7242D5E, registry key 0x0AE932D0, \

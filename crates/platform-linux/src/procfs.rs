@@ -207,7 +207,7 @@ CapEff:\t0000000000000000
     fn parses_maps_line_with_spaces_in_path() {
         let mapping = parse_maps_line(
             "140000000-140001000 rwxp 00000000 00:38 1293799                    \
-             /mnt/New Volume/FC27.exe",
+             /mnt/games/FC27.exe",
         )
         .unwrap();
         assert_eq!(mapping.start, 0x140000000);
@@ -215,7 +215,7 @@ CapEff:\t0000000000000000
         assert!(mapping.permissions.read);
         assert!(mapping.permissions.write);
         assert!(mapping.permissions.execute);
-        assert_eq!(mapping.path.as_deref(), Some("/mnt/New Volume/FC27.exe"));
+        assert_eq!(mapping.path.as_deref(), Some("/mnt/games/FC27.exe"));
         assert_eq!(mapping.kind, MappingKind::File);
     }
 

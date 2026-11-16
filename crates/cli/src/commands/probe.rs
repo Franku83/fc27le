@@ -6,7 +6,7 @@ use fc27_game::anchors::{
     ANCHORS, AnchorVerification, ScanOptions, VerificationStatus, verify_anchor,
 };
 use fc27_game::build_identity::{BuildIdentity, identify_file};
-use fc27_game::profile::{PROTECTION_MODULE, THIRD_PARTY_MODULE, EAAC_MODULE, EDITOR_DLL, GAME_EXE};
+use fc27_game::profile::GAME_EXE;
 use fc27_process::{ModuleInfo, ModuleKind, Pid, ProcessHandle, modules::find_module};
 use serde::Serialize;
 
@@ -14,13 +14,7 @@ use crate::cli::ProbeArgs;
 use crate::commands::open_process;
 use crate::output::print_json;
 
-const INTERESTING_MODULES: &[&str] = &[
-    GAME_EXE,
-    EDITOR_DLL,
-    PROTECTION_MODULE,
-    THIRD_PARTY_MODULE,
-    EAAC_MODULE,
-];
+const INTERESTING_MODULES: &[&str] = &[GAME_EXE];
 
 #[derive(Debug, Serialize)]
 struct ModulePresence {
@@ -83,7 +77,7 @@ pub fn run(args: &ProbeArgs, json: bool) -> Result<u8> {
 
     let modules_of_interest = INTERESTING_MODULES
         .iter()
-        .map(|name| describe_interest(&modules, name, &mut observations))
+        .map(|name| describe_interest(&modules, name))
         .collect::<Vec<_>>();
 
     let game_module = find_module(&modules, GAME_EXE).cloned();
@@ -276,11 +270,7 @@ pub fn run(args: &ProbeArgs, json: bool) -> Result<u8> {
     Ok(0)
 }
 
-fn describe_interest(
-    modules: &[ModuleInfo],
-    name: &'static str,
-    observations: &mut Vec<Observation>,
-) -> ModulePresence {
+fn describe_interest(modules: &[ModuleInfo], name: &'static str) -> ModulePresence {
     let found = find_module(modules, name);
     let (present, base, size, path, kind, pe_timestamp) = match found {
         Some(module) => (
@@ -297,62 +287,6 @@ fn describe_interest(
     let note = match (name, present) {
         (GAME_EXE, true) => "Game image resolved from /proc mappings.".to_string(),
         (GAME_EXE, false) => "Game image is not mapped; this is not the game process.".to_string(),
-        (EDITOR_DLL, true) => {
-            observations.push(Observation {
-                id: "editor-loaded",
-                text: "proprietary editor DLL is injected. Its log stages can be compared with the \
-                       previous research, but this project does not interact with it."
-                    .to_string(),
-                confidence: "confirmed",
-            });
-            "Live Editor DLL is loaded in this process.".to_string()
-        }
-        (EDITOR_DLL, false) => {
-            observations.push(Observation {
-                id: "editor-not-loaded",
-                text: "proprietary editor DLL is not injected. The game was started without the Live \
-                       Editor launcher, so editor-internal structures are absent."
-                    .to_string(),
-                confidence: "confirmed",
-            });
-            "Live Editor DLL is not loaded.".to_string()
-        }
-        (PROTECTION_MODULE, true) => {
-            observations.push(Observation {
-                id: "activation-module-loaded",
-                text: "activation module is loaded. This differs from the modified-build \
-                       hypothesis in reports/root_cause.md and should be recorded."
-                    .to_string(),
-                confidence: "confirmed",
-            });
-            "EA activation module is loaded.".to_string()
-        }
-        (PROTECTION_MODULE, false) => {
-            observations.push(Observation {
-                id: "activation-module-absent",
-                text: "activation module is not loaded, consistent with reports/root_cause.md \
-                       (the Live Editor's unbounded wait for this module)."
-                    .to_string(),
-                confidence: "corroborated",
-            });
-            "EA activation module is not loaded.".to_string()
-        }
-        (THIRD_PARTY_MODULE, true) => {
-            observations.push(Observation {
-                id: "thirdparty-loaded",
-                text: "third-party-module.dll is loaded. This is the third-party build distribution \
-                       described in reports/runtime_evidence.md, not a other distribution install."
-                    .to_string(),
-                confidence: "confirmed",
-            });
-            "third-party third-party module is loaded.".to_string()
-        }
-        (THIRD_PARTY_MODULE, false) => "third-party third-party module is not loaded.".to_string(),
-        (EAAC_MODULE, true) => {
-            "EA Anti-Cheat service launcher module is loaded; recorded only, never interacted with."
-                .to_string()
-        }
-        (EAAC_MODULE, false) => "EA Anti-Cheat service launcher module is not loaded.".to_string(),
         _ => "Recorded for completeness.".to_string(),
     };
 

@@ -2,7 +2,7 @@
 //!
 //! # Name storage model (WP5)
 //!
-//! `playernames` (`BGwe`) is a 12-byte fixed-row table:
+//! `playernames` is a 12-byte fixed-row table:
 //!
 //! ```text
 //! +0x00  u32  byte offset into the string pool
@@ -20,7 +20,7 @@
 //! leaf child:     UTF-8 byte << 8   (high byte = character, low byte 0)
 //! ```
 //!
-//! For `BGwe` the tree is 552 bytes / 138 nodes; the first string offset
+//! For `playernames` the tree is 552 bytes / 138 nodes; the first string offset
 //! (0x228) equals the tree size. A string entry is:
 //!
 //! ```text
@@ -32,11 +32,11 @@
 //! `output_byte_count` bytes. The next name's offset gives a strict upper bound
 //! for the current bitstream.
 //!
-//! `dcplayernames` (`bneD`) covers name IDs `46000..`:
+//! `dcplayernames` covers name IDs `46000..`:
 //! `nameid = stored + 46000` (13 bits at bit 304), `name` is a null-terminated
 //! inline string in the first 38 bytes of the 40-byte row.
 //!
-//! `editedplayernames` (`nQVU`) overrides names by `playerid`:
+//! `editedplayernames` overrides names by `playerid`:
 //! `playerid` (19 bits, bias -1) plus four 45-byte inline strings
 //! (firstname, commonname, playerjerseyname, surname).
 //!
