@@ -38,7 +38,7 @@ Builds are identified by SHA-256, never assumed:
 
 | Build hash | Label | Status |
 | --- | --- | --- |
-| `d81a7a7465718fddcf1eeffde1ee0f952cab69b2c4771ad2aca29c381cd9d5e9` | third-party build, 2026-11-12 | **tested**: discovery, modules, anchor verified |
+| `d81a7a7465718fddcf1eeffde1ee0f952cab69b2c4771ad2aca29c381cd9d5e9` | third-party build, 2026-11-12 | **tested**: discovery, modules, anchors, DB service path |
 | other distribution release | — | **not tested**; the previous reports also lacked the other distribution file set |
 | Any other hash | — | unknown: expect anchor mismatch; re-research before use |
 
@@ -50,6 +50,7 @@ identifies the file; it does not validate offsets or structures.
 | Anchor | Expected RVA | Tested build |
 | --- | ---: | --- |
 | `fc27.event-dispatcher` | `0x1CD3B5C` | verified |
+| `fc27.db-service-global` | `0x7242D5E` | verified live; chain checks pass |
 
 A different build may move the anchor. `probe` reports `mismatch`,
 `pattern_missing`, `scan_truncated` or `module_missing`; it never assumes the
@@ -107,7 +108,8 @@ permission error, not escalation.
 | Modules | PE and ELF; data files excluded |
 | PE headers/sections | PE32/PE32+; headers limited to 1 MiB |
 | Bounded reads | 1 MiB per read; holes rejected |
-| Pattern scans | PE sections only; 64 MiB default cap; configurable |
+| Pattern scans | PE sections only; per-anchor caps (64 MiB event, 160 MiB DB); configurable |
+| Database service path | verified read-only (`fc27le db`): 2 databases, 273 table descriptors |
 | Build SHA-256 | opt-out with `--no-hash` |
 | Player listing | **not compatible / not implemented** (evidence gate) |
 | Memory writes, hooks, injection | **not implemented by design** |
@@ -127,6 +129,8 @@ permission error, not escalation.
 | `pattern missing` | wrong build or wrong pattern | re-verify against the file; update the anchor |
 | `mismatch` | pattern exists at another RVA | treat the build as unsupported until re-researched |
 | `scan truncated` | scan cap reached before expected RVA | raise `--max-mib` deliberately |
+| `db` pattern missing | wrong build or wrong pattern | do not use the DB path; re-research |
+| `db` registry key missing | build does not match the verified service registry | treat as unsupported build |
 | `insufficient_evidence` (3) | player resolver gated | read `players --explain` |
 
 ## 8. Anti-cheat / DRM / online boundary

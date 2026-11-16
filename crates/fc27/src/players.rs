@@ -45,38 +45,42 @@ pub struct PlayerCapabilityReport {
 pub fn missing_evidence() -> Vec<MissingEvidence> {
     vec![
         MissingEvidence {
-            requirement: "Game-side database manager locator".to_string(),
-            why: "The Lua API exposes LE.db:GetTable(\"players\"), but the previous research \
-                  analysed proprietary editor DLL, not the game's database manager. No verified \
-                  address, vtable, global or signature exists for it."
+            requirement: "Full-name -> 4CC metadata map".to_string(),
+            why: "The game database manager and its 273 table descriptors are verified read-only \
+                  (`fc27le db`), but table/field names are stored as 4CC codes. Live Editor maps \
+                  `players` and its fields to those codes from data/db/fifa_ng_db-meta.xml, \
+                  loaded through CFS. No verified full-name -> 4CC map was found in the game \
+                  process."
                 .to_string(),
-            how_to_collect: "Statically locate the game's DB interface using the observed SQL and \
-                             schema strings in FC27.exe, then verify the resulting pattern against \
-                             live memory with a read-only anchor test."
+            how_to_collect: "Extract data/db/fifa_ng_db-meta.xml read-only from the game archives \
+                             (hash-list entry 1160535545681411833), parse the \
+                             <database>/<table name shortname>/<fields>/<field> schema, and map \
+                             `players` and its field names to 4CC codes."
                 .to_string(),
         },
         MissingEvidence {
-            requirement: "Players table record layout".to_string(),
-            why: "Field names are known at the API/SQL level (playerid, firstname, surname, \
-                  overallrating, potential, teamid), but their in-memory sizes, order, padding and \
-                  string representation are not established."
+            requirement: "Players table descriptor and row count".to_string(),
+            why: "The table manager exposes record size at +0x44, bit mask at +0x48 \
+                  (`record_size*8-1`, confirmed for all 273 tables), field count at +0x82 and \
+                  16-byte field entries at +0x84. Without the name map, the `players` 4CC and \
+                  its row count/data state cannot be selected."
                 .to_string(),
             how_to_collect:
-                "Derive candidate layouts from the game's table metadata, then validate \
-                             with cross-checks (monotonic record count, valid string pointers, \
-                             overall/potential ranges, team id referential integrity)."
+                "Use the XML-derived 4CC to select the descriptor with `fc27le db`, then validate \
+                             record size/bit mask, field count and row data availability before \
+                             reading any record."
                     .to_string(),
         },
         MissingEvidence {
-            requirement: "Verified record iteration primitive".to_string(),
-            why:
-                "The Live Editor API provides GetFirstRecord/GetNextValidRecord, but its internal \
-                  record cursor belongs to the editor, not to an independently verified game \
-                  structure."
-                    .to_string(),
+            requirement: "Player field names and record layout".to_string(),
+            why: "Field entries give bit offset, type, bit width and 4CC, and internal function \
+                  defines the bit-packed access semantics (types 0/3/4/0xD). The mapping from \
+                  player field names (playerid, firstnameid, overallrating, ...) to those 4CCs \
+                  and the row layout are not established."
+                .to_string(),
             how_to_collect:
-                "Document the game's table header, record stride and validity flag from \
-                             static and runtime evidence, then expose only a bounded iteration API."
+                "Combine the XML field map with the descriptor field entries, then validate \
+                             values against natural record variation and independent range checks."
                     .to_string(),
         },
         MissingEvidence {
@@ -104,8 +108,9 @@ pub fn missing_evidence() -> Vec<MissingEvidence> {
 pub fn capability_report() -> PlayerCapabilityReport {
     PlayerCapabilityReport {
         status: "blocked_on_evidence",
-        summary: "Read-only player listing is not implemented. The process and memory layers are \
-                  verified, but no game-side player structure has been established.",
+        summary: "Read-only player listing is not implemented. The process, memory and database \
+                  manager layers are verified (`fc27le db`), but the full-name -> 4CC map, the \
+                  players descriptor and the record layout are not established.",
         known_from_research: vec![
             "Live Editor Lua API: LE.db:GetTable(\"players\"), GetFirstRecord(), \
              GetNextValidRecord(), GetRecordFieldValue(record, \"playerid\"), \
@@ -118,8 +123,16 @@ pub fn capability_report() -> PlayerCapabilityReport {
              \"SELECT playerid, overallrating FROM players ORDER BY overallrating DESC\". \
              This is a string location, not a table locator."
                 .to_string(),
-            "The previous project verified process/module discovery and the event-dispatcher \
-             pattern, but not any player record layout."
+            "WP1 verified the runtime DB path: pattern RVA 0x7242D5E, registry key 0x0AE932D0, \
+             two databases (g_db, a_mx), 273 table descriptors. Run `fc27le db <pid>`."
+                .to_string(),
+            "Table descriptors store 4CC codes and a bit-packed layout: record size at +0x44, \
+             bit mask at +0x48 (record_size*8-1, confirmed for all 273 tables), field count at \
+             +0x82, 16-byte field entries at +0x84. Source: docs/research/db_interface.md."
+                .to_string(),
+            "The full-name -> 4CC map is loaded by Live Editor from \
+             data/db/fifa_ng_db-meta.xml (CFS hash-list entry 1160535545681411833); no verified \
+             equivalent map was found in the game process."
                 .to_string(),
         ],
         missing_evidence: missing_evidence(),

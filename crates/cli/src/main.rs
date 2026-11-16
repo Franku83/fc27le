@@ -61,6 +61,7 @@ fn dispatch(cli: &Cli) -> Result<u8> {
         Command::Read(args) => commands::read::run(args, json),
         Command::Scan(args) => commands::scan::run(args, json),
         Command::Probe(args) => commands::probe::run(args, json),
+        Command::Db(args) => commands::db::run(args, json),
         Command::Players(args) => commands::players::run(args, json),
         Command::Capabilities => commands::capabilities::run(json),
         Command::Selftest => commands::selftest::run(json),

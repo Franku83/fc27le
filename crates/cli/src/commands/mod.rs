@@ -2,6 +2,7 @@
 //! evidence gates (exit 3) are distinguishable from operational failures.
 
 pub mod capabilities;
+pub mod db;
 pub mod discover;
 pub mod info;
 pub mod maps;

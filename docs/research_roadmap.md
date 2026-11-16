@@ -8,9 +8,25 @@
 | Bounded memory reader | **done** | `docs/evidence/selftest.json` |
 | Module/PE/section resolution | **done** | `docs/evidence/probe.json` |
 | Build identity | **done** | SHA-256 match in `docs/evidence/probe.json` |
-| Verified anchor scan | **done** | event dispatcher at `0x141CD3B5C` |
-| Structure resolver for players | **not started** | no verified game-side evidence |
+| Verified anchor scan | **done** | event dispatcher at `0x141CD3B5C`; DB service at `0x147242D5E` |
+| Database service / table manager | **done (read-only)** | `fc27le db`, `docs/research/db_interface.md` |
+| Structure resolver for players | **not started** | no verified player-table name map or record layout |
 | Player listing | **gated** | `fc27le players --explain` exits 3 |
+
+### WP1 result (2026-11-16)
+
+WP1 is complete. `fc27le db <pid>` verifies the runtime path from Live Editor's
+database pattern to the game table manager and enumerates **2 databases**
+(`g_db`, `a_mx`) and **273 table descriptors**. The chain includes the global
+object, vtable thunk, service registry key `0x0AE932D0`, manager root and table
+headers; all pointers are read through the bounded reader and twelve semantic
+checks pass live.
+
+The remaining player-listing blocker is now precise: the full table/field names
+live in `data/db/fifa_ng_db-meta.xml` (CFS hash `1160535545681411833`), which
+Live Editor loads and parses into its own name→4CC maps. The game process keeps
+the 4CC table manager but not that external name mapping. No player offsets are
+claimed.
 
 The remaining work is *game-side structure discovery*, not process plumbing. This
 roadmap is ordered by shortest path and by how cheaply a wrong hypothesis can be
@@ -50,6 +66,11 @@ These are strings and metadata, not offsets:
 | 25 `players.*` field literals (`players.firstnameid`, `players.lastnameid`, `players.overallrating`, `players.potential`, ...) | string block at file `0xAB5AB28` / VA `0x14AB5AB28` | field names used by game code |
 | PE sections `typeinfo` and `fieldinf` | section table | section names suggest reflection/RTTI metadata |
 | `lua/scripts/list_players.lua` + `lua/DOC.MD` | previous project | API-level player access: `LE.db:GetTable("players")`, `GetRecordFieldValue(record, "playerid")` |
+| DB service pattern | file `0x724235E` / RVA `0x7242D5E` / live VA `0x147242D5E` | unique anchor to the game table manager (WP1) |
+| Service registry key `0x0AE932D0` | game service object | resolves to a manager with 2 databases and 273 table descriptors |
+| Table header invariant | table `+0x44` / `+0x48` | `record_size*8-1` bit mask; confirmed for all 273 tables |
+| `data/db/fifa_ng_db-meta.xml` | CFS hash `1160535545681411833` | full-name → 4CC map loaded by Live Editor (missing link) |
+| `GetTeamIdFromPlayerId` / `GetPlayerName` | DLL `0x3DEE00` / `0x3DDC70` | career-object accessors (`club_team_id`), **not** the DB table manager; do not use as table evidence |
 
 A field name in a string block does **not** give a field offset. SQL column order
 does not imply memory order. The Live Editor Lua API is an interface on top of the
@@ -57,78 +78,81 @@ game, not a description of the game's storage.
 
 ## 4. Work packages
 
-### WP1 — Map the `LWSQL` / ContentDB interface statically
+### WP1 — Map the `LWSQL` / ContentDB interface statically — **COMPLETE**
 
-**Goal:** identify the functions and globals that resolve a table name to a table
-descriptor.
+**Result:** the DB interface is a game-side table manager reached through a
+service registry. Live Editor's `internal function` scans for a unique pattern, then
+`internal function` calls the service method with key `0x0AE932D0`. The manager
+contains two databases (`g_db`, `a_mx`) and 273 table descriptors. Live Editor's
+`internal function` loads `data/db/fifa_ng_db-meta.xml` through CFS and parses it
+with `internal function`; `internal function` applies that metadata to the game tables.
 
-Tasks:
+Evidence and the full function map are in
+[`docs/research/db_interface.md`](research/db_interface.md). The implementation
+is `fc27le db` (`crates/fc27/src/db_service.rs`).
 
-1. Import `FC27.exe` into Ghidra/REA (or use targeted Capstone disassembly for the
-   relevant string xrefs).
-2. Find cross-references to:
-   * the `players` SQL literal at `0x14B20CB70`;
-   * `ContentDB LWSQL` and `query*Db LWSQL` strings;
-   * the `players.*` field block at `0x14AB5AB28`;
-   * `SELECT * FROM players;`.
-3. Classify callers: query parser, table lookup, record iteration, field access.
-4. Produce a list of candidate functions with RVA, call graph edges and a short
-   rationale.
+**What remains from WP1:** nothing for the interface itself. The name→4CC
+mapping is external XML metadata, which is WP3's first task.
 
-**Deliverable:** `docs/research/db_interface.md` with addresses, xrefs and quoted
-pseudocode (no copied proprietary source).
+**Stop rule (retained):** if the XML is not recoverable from CFS, stop before
+guessing 4CCs or field offsets.
 
-**Stop rule:** if the SQL strings are only used by an offline tool and not by the
-runtime DB, record that and pivot to the reflection metadata (`typeinfo` /
-`fieldinf`) or the save-file track.
+### WP2 — Turn one DB entry point into a verified anchor — **IMPLEMENTED**
 
-**Cost:** medium; this is static work and does not touch the live game.
+**Result:** the `fc27.db-service-global` anchor is registered at expected RVA
+`0x7242D5E` (unique in the tested file and live). `fc27le db <pid>` performs the
+semantic verification: LEA/MOV agreement, global/vtable/thunk/method
+containment, registry key lookup, manager root, expected database names and a
+non-empty table list. All twelve checks pass on the tested build.
 
-### WP2 — Turn one DB entry point into a verified anchor
+The anchor is read-only: no game function is called, and every pointer read is
+validated by the bounded reader.
 
-**Goal:** a byte pattern with an expected RVA that resolves the table registry or
-table lookup in live memory.
+**Next acceptance step:** re-run `fc27le db` on a fresh game launch and on any
+other distribution; a failure must be treated as an unsupported build.
 
-Tasks:
-
-1. Pick the smallest stable function from WP1 (prefer a leaf over a dispatcher).
-2. Build a wildcard pattern from its prologue/body, avoiding relocations and
-   build-specific immediates.
-3. Add it to `fc27_game::anchors::ANCHORS` with source and expected RVA.
-4. Run `fc27le probe <pid>` and require status `verified`.
-5. Confirm that the pattern is unique in the scanned range and stable across a
-   game restart (same build).
-
-**Acceptance:** anchor verifies live, is unique, and has a written expectation.
-
-**Stop rule:** if no stable anchor exists (e.g. only virtual calls), document the
-indirect path and move to WP3 with a different strategy (vtable + string xref).
-
-### WP3 — Locate the players table descriptor
+### WP3 — Recover the name→4CC map and locate the players descriptor
 
 **Goal:** find the table object for `players`, not just the code that can query it.
 
+The DB interface is already found. The missing key is the full-name → 4CC map
+that Live Editor loads from `data/db/fifa_ng_db-meta.xml` (CFS hash
+`1160535545681411833`). The game process stores 4CC table/field codes, not the
+full-name map.
+
 Tasks:
 
-1. From WP1/WP2, identify the table registry (name → descriptor) or the lookup
-   result structure.
-2. Read the registry with a bounded, read-only scan; validate every pointer.
-3. Identify the descriptor for `players` by name and/or by a stable id.
-4. Record: descriptor address, record count, record stride (if any), data
-   pointer(s), validity flags.
-5. Cross-check the count against an independent expectation (career save player
-   count, or a known league/team filter) without modifying the save.
+1. Implement or reuse a read-only CFS reader to extract
+   `data/db/fifa_ng_db-meta.xml` (hash above) from the game archives. Never
+   write to the archives.
+2. Parse the XML schema already visible in `internal function`:
+   `<database><table name="..." shortname="..." savegroups="...">`, a `<fields>`
+   block, and `<field .../>` entries. Map `players` to its `shortname` 4CC and
+   the player field names to their 4CCs.
+3. Use `fc27le db` to locate the table descriptor whose `+0x40` matches that
+   4CC. Record `+0x30` (data pointer), `+0x44` (record size bytes), `+0x48`
+   (`record_size*8-1` bit mask), `+0x4c` (flags), `+0x82` (field count) and the
+   16-byte field entries at `+0x84` (bit offset/type, size/4CC).
+4. Cross-check the record count against an independent expectation (career save
+   player count, or a known league/team filter) without modifying the save.
+5. Candidate observation for later validation: 14 tables share an identical
+   233-field, 236-byte, flag-2 schema (`luAI`, `eqqo`, `uxUO`, ...). This is a
+   **candidate family, not confirmed players**; only the XML mapping can settle
+   it.
 
 **Acceptance checks:**
 
+* the XML is obtained read-only and its digest/record is documented;
+* `players` maps to exactly one 4CC (or a documented shard set);
 * descriptor address is in a mapped, readable region;
-* count is plausible for FC 27 (thousands, not millions);
-* every record pointer (if pointer-based) is mapped and readable;
-* the table can be enumerated twice with the same count in one session;
+* record size/bit mask and field count are internally consistent
+  (`+0x48 == +0x44*8 - 1` holds for all 273 tables today);
+* the table can be enumerated twice with the same result in one session;
 * no writes occur.
 
-**Stop rule:** if the registry cannot be found from static evidence, stop and
-document the missing link. Do not brute-force every heap pointer.
+**Stop rule:** if the XML or a stable name mapping cannot be recovered, stop and
+document the missing link. Do not brute-force every heap pointer or guess a 4CC
+from a hash.
 
 ### WP4 — Derive and validate the record layout
 
@@ -142,16 +166,21 @@ preferredposition1, birthdate
 
 Tasks:
 
-1. Start from the descriptor/stride evidence, not from a guessed struct.
-2. Use diffs between known records: two players with different overall/potential
+1. Start from the descriptor evidence: field entries at `+0x84` give a bit
+   offset and type in the first qword, and a bit width plus 4CC in the second
+   qword. The row layout is bit-packed (`+0x48 == +0x44*8 - 1` is confirmed for
+   all 273 tables).
+2. Implement the bit-reader semantics observed in `internal function` (types 0, 3,
+   4 and `0xD`), with explicit bounds checks for every field.
+3. Use diffs between known records: two players with different overall/potential
    and known ids. A field is accepted only if it changes consistently.
-3. Validate types and ranges:
+4. Validate types and ranges:
    * `playerid` unique and positive;
    * `overallrating` and `potential` within the game's rating range and
      `potential >= overall` for most players;
    * `birthdate` decodes to a plausible date;
    * ids resolve through the same table/ID map used by the game.
-4. Resolve names only through the verified string model (WP5).
+5. Resolve names only through the verified string model (WP5).
 
 **Deliverable:** a field table with offset, width, signedness, confidence and
 validation evidence. No field is added without a cross-check.
@@ -265,7 +294,9 @@ No fuzzing against the live process. No writes, no function calls, no hooks.
 
 ## 9. Recommended next action
 
-Start with **WP1**, limited to the `players` / `LWSQL` string xrefs. It is static,
-cheap, reversible and produces the input for every later step. If WP1 cannot
-connect the strings to a runtime table path, stop and report that finding rather
-than exploring the heap.
+Proceed with **WP3**, step 1: implement or reuse a read-only CFS extractor and
+recover `data/db/fifa_ng_db-meta.xml` (hash `1160535545681411833`). It is static,
+cheap, reversible and produces the name→4CC map needed for every later step.
+Parse it, map `players` to its 4CC, then resolve the descriptor with `fc27le db`.
+If the XML cannot be recovered or parsed, stop and report that finding rather
+than guessing a 4CC or exploring the heap.

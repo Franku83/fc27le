@@ -64,15 +64,23 @@ pub const CAPABILITIES: &[Capability] = &[
         id: "verified-pattern-scan",
         name: "Verify research anchors against live memory",
         status: CapabilityStatus::ImplementedReadOnly,
-        evidence: "press_any_key_analysis.md §2.4; local unique-hit re-verification",
-        note: "The event-dispatcher pattern is the only structure anchor with a written expectation.",
+        evidence: "press_any_key_analysis.md §2.4; proprietary editor DLL internal function; local live verification",
+        note: "Two anchors: the event dispatcher and the database service-object initializer.",
+    },
+    Capability {
+        id: "db-service-verification",
+        name: "Verify the game database service path and table manager",
+        status: CapabilityStatus::ImplementedReadOnly,
+        evidence: "proprietary editor DLL internal function / internal function / internal function; live `fc27le db` checks",
+        note: "Reaches the 273-table manager and two databases by pointer traversal; no game function is called.",
     },
     Capability {
         id: "player-listing",
         name: "Read the player table from process memory",
         status: CapabilityStatus::BlockedOnEvidence,
-        evidence: "lua/scripts/list_players.lua; lua/DOC.MD; FC27.exe SQL/schema strings",
-        note: "No verified game-side table locator, record layout or field offsets exist yet.",
+        evidence: "lua/scripts/list_players.lua; lua/DOC.MD; FC27.exe SQL/schema strings; `fc27le db`",
+        note: "DB interface and table manager are verified, but the full-name -> 4CC map comes from \
+               data/db/fifa_ng_db-meta.xml and the record layout is not yet derived.",
     },
     Capability {
         id: "team-and-competition-names",

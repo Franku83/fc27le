@@ -18,7 +18,8 @@ anti-cheat/DRM, or modify game files, prefixes or saves.**
 | Controlled memory-reader selftest | passes (spawns its own child process) |
 | Module/PE/section enumeration | implemented |
 | Build identity (size, SHA-256, PE metadata) | implemented |
-| Verified pattern anchors | implemented (event dispatcher verified live) |
+| Verified pattern anchors | implemented (event dispatcher + DB service path verified live) |
+| Database service / table manager | **verified read-only** (`fc27le db`) |
 | Player listing | **blocked on evidence** (exit code 3, no invented offsets) |
 | Windows backend | documented stub, not compiled or tested on Windows |
 
@@ -48,6 +49,9 @@ cargo build --release
 # Full read-only reconnaissance report for one process
 ./target/release/fc27le probe <pid>
 
+# Verify the database service path and list table descriptors
+./target/release/fc27le db <pid>
+
 # Machine-readable output
 ./target/release/fc27le probe <pid> --json
 ```
@@ -76,6 +80,7 @@ FC 27 game: pid 19349 (FC27.exe, score 150)
 | `read <pid> --module FC27.exe --offset 0x1CD3B5C --length 48` | Module-relative read |
 | `scan <pid> --module FC27.exe --pattern "48 89 ?? ..."` | Bounded PE-section pattern scan |
 | `probe <pid> [--no-hash] [--skip-anchors]` | Full reconnaissance report + anchor verification |
+| `db <pid>` | Verify the DB service path and enumerate the game's table manager |
 | `players <pid> --explain` | Evidence-gated player-listing report (exit 3) |
 | `capabilities` | Implemented / blocked / out-of-scope matrix |
 | `selftest` | Controlled end-to-end memory-reader test |
@@ -116,6 +121,10 @@ GE-Proton11-12:
 * the `press_any_key_analysis.md` event-dispatcher pattern found **exactly once**
   at RVA `0x1CD3B5C` / VA `0x141CD3B5C`, matching the static file offset
   `0x1CD315C`;
+* Live Editor's database service pattern found **exactly once** at RVA
+  `0x7242D5E` / VA `0x147242D5E`; the service registry key `0x0AE932D0` resolves
+  to the game table manager with two databases (`g_db`, `a_mx`) and 273 table
+  descriptors (see `fc27le db`);
 * `proprietary editor DLL` and `activation module` were **not** loaded (the game was
   started directly, not through the Live Editor launcher);
 * `third-party-module.dll` **was** loaded, matching the third-party build build in the
@@ -129,6 +138,7 @@ Evidence snapshots live in [`docs/evidence/`](docs/evidence/).
 * [`docs/architecture.md`](docs/architecture.md) — workspace, data flow, safety invariants
 * [`docs/linux_environment.md`](docs/linux_environment.md) — observed host, Wine/Proton, memory layout, permissions
 * [`docs/fc27_reconnaissance.md`](docs/fc27_reconnaissance.md) — FC 27 process-discovery and anchor report
+* [`docs/research/db_interface.md`](docs/research/db_interface.md) — WP1: LWSQL/ContentDB reverse engineering
 * [`docs/research_roadmap.md`](docs/research_roadmap.md) — evidence gates and next investigation steps
 * [`docs/compatibility.md`](docs/compatibility.md) — supported environments, builds and limitations
 

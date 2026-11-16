@@ -55,6 +55,9 @@ pub enum Command {
     /// Full read-only reconnaissance report for one process.
     Probe(ProbeArgs),
 
+    /// Verify the game database service path and table manager (read-only).
+    Db(DbArgs),
+
     /// Report the evidence gate for read-only player listing.
     Players(PlayersArgs),
 
@@ -185,12 +188,29 @@ pub struct ProbeArgs {
     pub no_hash: bool,
 
     /// Safety cap for anchor scans, in MiB.
-    #[arg(long, default_value_t = 64)]
+    #[arg(long, default_value_t = 160)]
     pub anchor_max_mib: u64,
 
     /// Skip live anchor verification.
     #[arg(long)]
     pub skip_anchors: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct DbArgs {
+    pub pid: Pid,
+
+    /// Module to inspect.
+    #[arg(long, default_value = "FC27.exe")]
+    pub module: String,
+
+    /// Safety cap for the database-service pattern scan, in MiB.
+    #[arg(long, default_value_t = 160)]
+    pub max_mib: u64,
+
+    /// Maximum table descriptors to print in human output.
+    #[arg(long, default_value_t = 40)]
+    pub limit: usize,
 }
 
 #[derive(Debug, Args)]
@@ -216,6 +236,7 @@ impl Command {
             Self::Read(_) => "read",
             Self::Scan(_) => "scan",
             Self::Probe(_) => "probe",
+            Self::Db(_) => "db",
             Self::Players(_) => "players",
             Self::Capabilities => "capabilities",
             Self::Selftest => "selftest",

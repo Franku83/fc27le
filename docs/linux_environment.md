@@ -190,6 +190,24 @@ entries:
 
 `proprietary editor DLL` and `activation module` were **not** present in this session.
 
+### 6.3 Runtime database interface
+
+`fc27le db 19349` verified the game's database service path read-only:
+
+| Item | Snapshot value |
+| --- | --- |
+| DB service pattern | RVA `0x7242D5E`, VA `0x147242D5E`, unique |
+| Global service object | `0x14BEB6538` (vtable `0x1498A14D0`) |
+| Registry key | `0x0AE932D0` -> manager interface `0x30E0B9A8` |
+| Table manager root | `0x30E0B9A0` |
+| Databases | `g_db` (269 tables), `a_mx` (4 tables) |
+| Table descriptors | **273** |
+
+Table descriptors use 4CC codes and a bit-packed layout. `+0x44` is the record
+size in bytes; `+0x48 == +0x44*8 - 1` for all 273 tables. Full table/field names
+are not in the game process; Live Editor loads them from
+`data/db/fifa_ng_db-meta.xml`. See `docs/research/db_interface.md`.
+
 ## 7. Linux process-inspection permissions
 
 ### Policy snapshot

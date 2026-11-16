@@ -24,7 +24,8 @@ crates/
   process/           fc27-process
   platform-linux/    fc27-platform-linux
   platform-windows/  fc27-platform-windows   (documented stub)
-  fc27/              fc27-game
+  fc27/              fc27-game (profile, discovery, anchors, build identity,
+                     db_service, capability/evidence gates)
   cli/               fc27-cli -> binary `fc27le`
 ```
 
@@ -102,6 +103,17 @@ probe(pid)
   -> build identity (size, optional SHA-256, PE metadata)
   -> anchor verification (bounded scan of executable PE sections)
   -> observations with confidence + explicit limitations
+```
+
+```text
+db(pid)
+  -> anchor pattern scan (FC27.exe executable sections, 160 MiB cap)
+  -> resolve LEA/MOV RIP targets in the matched game function
+  -> read global object -> vtable -> thunk -> service registry
+  -> key 0x0AE932D0 -> table-manager interface -> manager root
+  -> traverse 2 database nodes and 273 table descriptors
+  -> validate every pointer through the production bounded reader
+  -> checks + table summary (no game function is called)
 ```
 
 ```text
@@ -211,12 +223,46 @@ Verification scans **only PE sections** (executable sections by default) with a
 VA/RVA and the number of bytes scanned. A match is only "verified" when it is at
 the expected RVA; finding the pattern elsewhere is a mismatch, not a success.
 
-The current registry contains one anchor: the game-event dispatcher from
-`reports/press_any_key_analysis.md` §2.4. It was independently re-verified
-against the on-disk executable (unique hit at file offset `0x1CD315C`) and
-against live memory (VA `0x141CD3B5C`).
+The current registry contains two anchors:
 
-## 9. Error model and exit codes
+* the game-event dispatcher from `reports/press_any_key_analysis.md` §2.4,
+  independently re-verified against the on-disk executable (unique hit at file
+  offset `0x1CD315C`) and live memory (VA `0x141CD3B5C`);
+* the database service-object initializer from Live Editor's
+  `internal function`, unique at file offset `0x724235E`, RVA `0x7242D5E`, verified
+  live at VA `0x147242D5E`.
+
+## 9. Database service path (WP1)
+
+`fc27_game::db_service` verifies the game-side path used by Live Editor's
+`DatabaseManager` without calling a game function:
+
+```text
+pattern (RVA 0x7242D5E)
+  -> global object (LEA/MOV targets)
+  -> vtable +0x30 thunk
+  -> service object -> service vtable +0x40 method
+  -> registry key 0x0AE932D0
+  -> table-manager interface (value - 8)
+  -> 2 database nodes -> 273 table descriptors
+```
+
+The traversal is bounded (`MAX_DATABASES`, `MAX_TABLES`) and every pointer read
+goes through the production `ProcessHandle::read`, so an unmapped or
+read-protected pointer fails closed. The command emits twelve semantic checks,
+including the expected RVA, LEA/MOV agreement, module containment of the
+vtable/thunk/method, the registry key, the two expected database names and a
+non-empty table list.
+
+The table-manager layer is not a player resolver: it exposes 4CC table
+shortnames and a record layout header (`+0x44` record size in bytes, `+0x48`
+`record_size*8-1` bit mask, `+0x4c` flags, `+0x82` field count, `+0x84`
+16-byte field entries). The full-name -> 4CC mapping is loaded by Live Editor
+from `data/db/fifa_ng_db-meta.xml` through CFS; no verified name map was found
+in the game process. The player table therefore remains behind the evidence
+gate.
+
+## 10. Error model and exit codes
 
 All fallible APIs return `fc27_core::Result<T>` with a typed `Error`. The CLI
 never panics for an expected failure.
@@ -237,7 +283,7 @@ never panics for an expected failure.
 `--json` keeps stdout machine-readable: JSON payloads go to stdout, logs and
 errors go to stderr. Error objects include a stable `kind`.
 
-## 10. Logging
+## 11. Logging
 
 `tracing` + `tracing-subscriber` provides structured logs on stderr. The CLI
 emits one `starting`, one `finished`/`failed` event per command, plus command
@@ -247,7 +293,7 @@ JSON lines; `--log-level` accepts standard `EnvFilter` directives.
 Logs never include process memory contents. Hexdumps are explicit command output,
 not logs.
 
-## 11. Testing
+## 12. Testing
 
 | Layer | Tests |
 | --- | --- |
@@ -269,7 +315,7 @@ cargo test --workspace
 ./target/release/fc27le selftest
 ```
 
-## 12. Windows backend plan
+## 13. Windows backend plan
 
 The trait boundary is already platform-neutral:
 
@@ -308,7 +354,7 @@ will need a small, reviewed `unsafe` boundary around `windows-sys`; that attribu
 must be relaxed deliberately (with a documented audit) rather than removed
 silently.
 
-## 13. Adding the player resolver (only with evidence)
+## 14. Adding the player resolver (only with evidence)
 
 A future resolver must be a separate module with an explicit evidence record for
 each step. Minimum acceptance criteria:
@@ -327,7 +373,7 @@ each step. Minimum acceptance criteria:
 If any of these is missing, the resolver must return `InsufficientEvidence`
 instead of guessing. That is the current state.
 
-## 14. Trust model
+## 15. Trust model
 
 Process memory and module contents are **untrusted data**. Strings, "SQL",
 names and symbol-like text read from the game are never interpreted as
