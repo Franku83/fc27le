@@ -1,5 +1,9 @@
 # WP3 — Database Metadata and 4CC Resolution
 
+> The shipped compact profile is documented in
+> [`docs/embedded_profile.md`](../embedded_profile.md); this research note covers
+> the external descriptor and live validation.
+
 **Date:** 2026-11-16
 **Targets:** live `FC27.exe` (SHA-256 `d81a7a7465718fddcf1eeffde1ee0f952cab69b2c4771ad2aca29c381cd9d5e9`), metadata descriptor `data/db/fifa_ng_db-meta.xml`
 **Mode:** read-only; no game, prefix, save or Live Editor binary changes

@@ -275,7 +275,8 @@ fc27le players <pid> --metadata FILE [--limit N] [--json]
 
 Requirements met:
 
-* requires a caller-supplied metadata XML (the game's own copy still needs CFS
+* requires external metadata XML for full-table coverage; the verified player/name
+  path uses the embedded profile (the game's own copy still needs CFS
   extraction);
 * resolves `players` to `CZUM` and validates 152/152 field widths before output;
 * uses the verified slot count/capacity/invalid markers and skips invalid slots;

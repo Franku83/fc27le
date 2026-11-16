@@ -105,10 +105,10 @@ permission error, not escalation.
 | Bounded reads | 1 MiB per read; holes rejected |
 | Pattern scans | PE sections only; per-anchor caps (64 MiB event, 160 MiB DB); configurable |
 | Database service path | verified read-only (`fc27le db`): 2 databases, 273 table descriptors |
-| Database metadata parser | caller-supplied XML; 268/268 tables and field widths validated live |
+| Database metadata parser | external XML: 268/268 tables and field widths validated live; embedded profile validates its 4 tables and listed fields live |
 | Players descriptor | verified as `CZUM` (152 fields, 156-byte records); live count 22,098 / capacity 27,000 |
 | Build SHA-256 | opt-out with `--no-hash` |
-| `players` table | **supported read-only** on the verified build with a matching caller-supplied metadata XML; emits numeric fields and names (`--no-names` for numeric only) |
+| `players` table | **supported read-only** on the verified build with the embedded profile or a matching external XML; emits numeric fields and names (`--no-names` for numeric only) |
 | Player names | **supported read-only**: `playernames` Huffman pool, `dcplayernames` IDs 46000+, `editedplayernames` overrides |
 | Team/league/competition names | **not implemented** (different tables/string fields) |
 | Memory writes, hooks, injection | **not implemented by design** |
@@ -118,7 +118,7 @@ permission error, not escalation.
 | GUI detail panel | name, playerid, OVR/POT, height/weight, slot, name IDs/source; verified |
 | GUI reconnect/refresh | re-runs discovery and the full verified loader; visible errors |
 | Lua 5.4 runtime | **implemented read-only subset** via `mlua 0.11` (`lua54`, `vendored`) |
-| Lua `LE.db` tables | 268 tables in the tested metadata/live intersection; `players` verified live |
+| Lua `LE.db` tables | 4 with the embedded profile; 268 with external XML in the tested metadata/live intersection; `players` verified live |
 | Lua record iteration | verified over 21,814 live players; `0` terminator |
 | Lua writes/events/managers | **explicit compatibility errors**, never simulated |
 | In-game presentation | external floating window; F9 hides while focused; socket toggle restores |
@@ -128,7 +128,7 @@ permission error, not escalation.
 ### 6.1 Application and window behavior
 
 The GUI is a normal native window (eframe/egui). It auto-discovers `FC27.exe`,
-validates a caller-supplied metadata XML against the live table manager, loads
+validates the embedded profile or a caller-supplied metadata XML against the live table manager, loads
 players and names on a background thread, and keeps the render thread free of
 blocking database or Lua work.
 
@@ -212,7 +212,7 @@ A build is "supported" for read-only metadata when:
 
 Player enumeration additionally requires:
 
-1. a caller-supplied metadata XML that validates against the live manager;
+1. a metadata profile (embedded for the tested build, or external XML) that validates against the live manager;
 2. `players` resolving to the verified descriptor with all 152 field widths;
 3. `slot_count <= capacity`, `invalid_rows == +0x7E`, and a matching playerid-index
    count;

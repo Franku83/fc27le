@@ -33,3 +33,6 @@ drive_c/
 .idea/
 *.swp
 .DS_Store
+
+# Release artifacts
+/dist/

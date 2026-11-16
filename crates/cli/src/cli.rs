@@ -208,7 +208,7 @@ pub struct DbArgs {
     #[arg(long, default_value_t = 160)]
     pub max_mib: u64,
 
-    /// Caller-supplied database metadata XML to resolve names to 4CC codes.
+    /// Caller-supplied XML override; the verified build can use the embedded profile.
     #[arg(long, value_name = "FILE")]
     pub metadata: Option<String>,
 
@@ -229,7 +229,7 @@ pub struct PlayersArgs {
     #[arg(long, default_value = "FC27.exe")]
     pub module: String,
 
-    /// Caller-supplied database metadata XML used to resolve `players` to its 4CC.
+    /// Caller-supplied XML override; the verified build uses the embedded profile by default.
     #[arg(long, value_name = "FILE")]
     pub metadata: Option<String>,
 

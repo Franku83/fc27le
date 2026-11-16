@@ -1,7 +1,11 @@
 use fc27_core::{Error, Result};
 use fc27_game::anchors::ScanOptions;
-use fc27_game::db_metadata::validate;
+use fc27_game::build_identity::sha256_file;
+use fc27_game::db_metadata::{Metadata, validate};
 use fc27_game::db_service::inspect;
+use fc27_game::embedded_profile::{
+    PROFILE_BUILD_SHA256, PROFILE_ID, metadata as embedded_metadata,
+};
 use fc27_game::name_pool::{NameResolutionReport, PlayerNameResolver};
 use fc27_game::player_store::{PlayerScan, scan_players};
 use fc27_game::players::capability_report;
@@ -36,7 +40,7 @@ struct PlayersOutput {
 }
 
 pub fn run(args: &PlayersArgs, json: bool) -> Result<u8> {
-    if args.explain || args.metadata.is_none() {
+    if args.explain {
         return run_gate(args, json);
     }
 
@@ -58,25 +62,46 @@ pub fn run(args: &PlayersArgs, json: bool) -> Result<u8> {
         ));
     }
 
-    let metadata_path = args
-        .metadata
-        .as_deref()
-        .expect("metadata presence checked above");
-    let loaded = load_metadata(metadata_path)?;
-    let validation = validate(&loaded.parsed, &report.tables, &process, "players")?;
+    let (metadata, metadata_path, metadata_size, metadata_sha256): (Metadata, String, u64, String) =
+        match &args.metadata {
+            Some(path) => {
+                let loaded = load_metadata(path)?;
+                (
+                    loaded.parsed,
+                    path.clone(),
+                    loaded.size_bytes,
+                    loaded.sha256,
+                )
+            }
+            None => {
+                let build_sha256 = sha256_file(std::path::Path::new(&module.path))?;
+                if build_sha256 != PROFILE_BUILD_SHA256 {
+                    return Err(Error::InsufficientEvidence(format!(
+                        "the embedded profile only supports FC27.exe SHA-256 {PROFILE_BUILD_SHA256};                          pass --metadata FILE for this build"
+                    )));
+                }
+                (
+                    embedded_metadata(),
+                    format!("embedded:{PROFILE_ID}"),
+                    0,
+                    String::new(),
+                )
+            }
+        };
+    let validation = validate(&metadata, &report.tables, &process, "players")?;
     if !validation.focus_verified {
         return Err(Error::InsufficientEvidence(
-            "the `players` descriptor did not match the supplied metadata; refusing to enumerate"
+            "the `players` descriptor did not match the selected metadata profile; refusing to enumerate"
                 .to_string(),
         ));
     }
 
-    let mut scan = scan_players(&process, &loaded.parsed, &report.tables, args.limit)?;
+    let mut scan = scan_players(&process, &metadata, &report.tables, args.limit)?;
 
     let name_resolution = if args.no_names {
         None
     } else {
-        let resolver = PlayerNameResolver::load(&process, &loaded.parsed, &report.tables)?;
+        let resolver = PlayerNameResolver::load(&process, &metadata, &report.tables)?;
         for record in &mut scan.records {
             let resolved = resolver.resolve_player(
                 record.player_id,
@@ -104,9 +129,9 @@ pub fn run(args: &PlayersArgs, json: bool) -> Result<u8> {
             "insufficient_evidence"
         },
         metadata: MetadataInfo {
-            path: metadata_path.to_string(),
-            size_bytes: loaded.size_bytes,
-            sha256: loaded.sha256,
+            path: metadata_path,
+            size_bytes: metadata_size,
+            sha256: metadata_sha256,
             table_count: validation.metadata_table_count,
             matched_tables: validation.matched_tables,
             verified_tables: validation.verified_tables,
@@ -292,8 +317,8 @@ fn run_gate(args: &PlayersArgs, json: bool) -> Result<u8> {
         }
         println!("\npolicy: {}", output.policy);
         println!(
-            "\nPass --metadata FILE to enumerate verified numeric player fields \
-             (playerid, overallrating, potential, height, weight)."
+            "\nThe embedded profile is used by default for the verified build. \
+             Pass --metadata FILE for another build or full-table coverage."
         );
     }
     Ok(3)

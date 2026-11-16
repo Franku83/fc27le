@@ -1,4 +1,6 @@
 mod app;
+mod config;
+mod diagnostics;
 mod kwin;
 mod session;
 mod socket;
@@ -42,9 +44,13 @@ struct Args {
     #[arg(long)]
     run_script: bool,
 
-    /// Do not auto-connect even if a game and metadata are available
+    /// Do not auto-connect even if a game is available
     #[arg(long)]
     no_auto_connect: bool,
+
+    /// Require an external metadata XML instead of the embedded profile
+    #[arg(long)]
+    no_embedded: bool,
 
     /// Send toggle to a running FC27LE GUI and exit
     #[arg(long)]
@@ -98,6 +104,7 @@ fn run(args: Args) -> Result<(), String> {
         script: args.script,
         run_script: args.run_script,
         no_auto_connect: args.no_auto_connect,
+        no_embedded: args.no_embedded,
     };
     let native_options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()

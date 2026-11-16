@@ -22,7 +22,13 @@
     "tables_total": 268,
     "fixed_row_layouts_verified": 263,
     "focus_table": "players",
-    "focus_verified": true
+    "focus_verified": true,
+    "embedded_profile": {
+      "id": "fc27le-embedded-v1",
+      "tables": 4,
+      "accepted_build_sha256": "d81a7a7465718fddcf1eeffde1ee0f952cab69b2c4771ad2aca29c381cd9d5e9",
+      "note": "Minimal hand-written profile; every listed field is revalidated against live descriptors."
+    }
   },
   "players": {
     "slots": 22098,
@@ -45,7 +51,14 @@
     "window_mode": "external floating window",
     "search_by_name": true,
     "search_by_id": true,
-    "sort_columns": ["name", "id", "OVR", "POT", "height", "weight"],
+    "sort_columns": [
+      "name",
+      "id",
+      "OVR",
+      "POT",
+      "height",
+      "weight"
+    ],
     "detail_panel": true,
     "refresh_reconnect": true,
     "lua_console": true,
@@ -56,20 +69,21 @@
   },
   "lua": {
     "engine": "Lua 5.4 via mlua (lua54, vendored)",
-    "tables_exposed": 268,
     "table_name": "players",
     "written_records": 22098,
     "valid_records_scanned": 21814,
     "message_box_verified": true,
     "stop_cancelled_infinite_loop": true,
     "write_operations_implemented": false,
-    "event_sources_implemented": false
+    "event_sources_implemented": false,
+    "tables_exposed_external_xml": 268,
+    "tables_exposed_embedded": 4
   },
   "automated_tests": {
     "cargo_fmt_check": "pass",
     "cargo_clippy_all_targets": "0 warnings",
     "cargo_test_workspace": {
-      "passed": 78,
+      "passed": 91,
       "failed": 0
     },
     "release_build": "pass"

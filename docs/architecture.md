@@ -279,8 +279,8 @@ non-empty table list.
 The table-manager layer is not a player resolver: it exposes 4CC table
 shortnames and a record layout header (`+0x44` record size in bytes, `+0x48`
 `record_size*8-1` bit mask, `+0x4c` flags, `+0x82` field count, `+0x84`
-16-byte field entries). The full-name -> 4CC mapping comes from a caller-supplied metadata XML;
-no verified name map is bundled with the game process.
+16-byte field entries). The full-name -> 4CC mapping comes from the embedded minimal profile or a
+caller-supplied metadata XML; no name map is bundled with the game process.
 
 `fc27_game::db_metadata` parses a caller-supplied descriptor and validates it
 against the live manager. On the tested build, 268/268 metadata tables matched
@@ -308,7 +308,9 @@ See `docs/research/player_storage.md` and `docs/research/name_storage.md`.
 ### 9.1 Generic table snapshots
 
 `fc27_game::table_access::TableSnapshot` generalizes the verified player storage
-model to any metadata table that matches a live descriptor. It snapshots
+model to any metadata table that matches a live descriptor. The compact embedded
+profile marks its four tables as partial, so only the listed fields are
+validated; external XML remains strict and full-table. It snapshots
 `slot_count * record_size` bytes once, bounds the read at 64 MiB, validates every
 field against the record size, maps metadata field names to live 4CC entries,
 and decodes integer (with bias/range check), float32, inline string and

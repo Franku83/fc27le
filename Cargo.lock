@@ -1141,7 +1141,7 @@ checksum = "caf1079563223d5d59d83c85886a56e586cfd5c1a26292e971a0fa266531ac5a"
 
 [[package]]
 name = "fc27-cli"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "clap",
  "fc27-core",
@@ -1156,14 +1156,14 @@ dependencies = [
 
 [[package]]
 name = "fc27-core"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "thiserror 2.0.21",
 ]
 
 [[package]]
 name = "fc27-game"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "fc27-core",
  "fc27-process",
@@ -1174,7 +1174,7 @@ dependencies = [
 
 [[package]]
 name = "fc27-gui"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "clap",
  "eframe",
@@ -1183,11 +1183,14 @@ dependencies = [
  "fc27-lua-compat",
  "fc27-platform-linux",
  "fc27-process",
+ "serde",
+ "serde_json",
+ "unicode-normalization",
 ]
 
 [[package]]
 name = "fc27-lua-compat"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "fc27-core",
  "fc27-game",
@@ -1199,7 +1202,7 @@ dependencies = [
 
 [[package]]
 name = "fc27-platform-linux"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "fc27-core",
  "fc27-process",
@@ -1208,7 +1211,7 @@ dependencies = [
 
 [[package]]
 name = "fc27-platform-windows"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "fc27-core",
  "fc27-process",
@@ -1217,7 +1220,7 @@ dependencies = [
 
 [[package]]
 name = "fc27-process"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "fc27-core",
  "serde",
@@ -3262,6 +3265,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "tinyvec"
+version = "1.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
+
+[[package]]
 name = "tokio"
 version = "1.54.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3412,6 +3421,15 @@ name = "unicode-ident"
 version = "1.0.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
+
+[[package]]
+name = "unicode-normalization"
+version = "0.1.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75cd3fb03d5288b3ba9a1ee103ac7e9cbb59f0b03d64f8ddfcc04dd42758a85d"
+dependencies = [
+ "tinyvec",
+]
 
 [[package]]
 name = "unicode-segmentation"

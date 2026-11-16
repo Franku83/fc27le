@@ -35,6 +35,9 @@ pub struct MetadataTable {
     pub shortname: String,
     pub savegroups: Vec<String>,
     pub fields: Vec<MetadataField>,
+    /// True for the compact embedded profile: only the listed fields are
+    /// validated, while the live table may contain additional fields.
+    pub partial: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -149,6 +152,7 @@ pub fn parse_metadata_xml(xml: &str) -> Result<Metadata> {
             shortname,
             savegroups,
             fields,
+            partial: false,
         });
     }
 
@@ -428,17 +432,23 @@ pub fn compare_table(
         .map(|field| u32::from(field.depth))
         .sum();
     let row_bits = live.header_44.checked_mul(8);
-    let padding_bits = row_bits.map(|bits| i64::from(bits) - i64::from(sum_depth));
-    let field_count_ok = metadata.fields.len() == live_fields.len();
-    let row_layout_ok = padding_bits.is_some_and(|padding| padding >= 0);
+    let padding_bits = if metadata.partial {
+        None
+    } else {
+        row_bits.map(|bits| i64::from(bits) - i64::from(sum_depth))
+    };
+    let field_count_ok = metadata.partial || metadata.fields.len() == live_fields.len();
+    let row_layout_ok = if metadata.partial {
+        // A partial profile lists only the fields needed by the player/name
+        // reader. Every listed field is still bounds-checked above.
+        true
+    } else {
+        padding_bits.is_some_and(|padding| (0..8).contains(&padding))
+    };
     let field_widths_ok = width_mismatches.is_empty()
         && missing_live_fields.is_empty()
-        && extra_live_fields.is_empty();
-    let verified = field_count_ok
-        && field_widths_ok
-        && row_layout_ok
-        && padding_bits.is_some_and(|padding| padding < 8)
-        && live.data_pointer != 0;
+        && (metadata.partial || extra_live_fields.is_empty());
+    let verified = field_count_ok && field_widths_ok && row_layout_ok && live.data_pointer != 0;
 
     TableValidation {
         name: metadata.name.clone(),

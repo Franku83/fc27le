@@ -161,7 +161,7 @@ pub fn resolve_layout(
             ))
         })?;
 
-    if live.field_count_byte as usize != metadata_table.fields.len() {
+    if !metadata_table.partial && live.field_count_byte as usize != metadata_table.fields.len() {
         return Err(Error::InsufficientEvidence(format!(
             "`{PLAYERS_TABLE}` field count mismatch: metadata {} vs live {}",
             metadata_table.fields.len(),
@@ -246,7 +246,7 @@ pub fn resolve_layout(
         )));
     }
     let padding_bits = row_bits - total_width;
-    if padding_bits > 7 {
+    if !metadata_table.partial && padding_bits > 7 {
         return Err(Error::InsufficientEvidence(format!(
             "`{PLAYERS_TABLE}` has {padding_bits} padding bits; the fixed-row layout requires \
              less than 8"

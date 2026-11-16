@@ -85,7 +85,8 @@ impl TableSnapshot {
                     metadata_table.shortname
                 ))
             })?;
-        if live.field_count_byte as usize != metadata_table.fields.len() {
+        if !metadata_table.partial && live.field_count_byte as usize != metadata_table.fields.len()
+        {
             return Err(Error::InsufficientEvidence(format!(
                 "`{table_name}` field count mismatch: metadata {} vs live {}",
                 metadata_table.fields.len(),
@@ -165,7 +166,11 @@ impl TableSnapshot {
             slot_count,
             capacity,
             invalid_marker_count,
-            field_count: fields.len() as u32,
+            field_count: if metadata_table.partial {
+                u32::from(live.field_count_byte)
+            } else {
+                fields.len() as u32
+            },
         };
         Self::from_parts(info, fields.into_values().collect(), data)
     }

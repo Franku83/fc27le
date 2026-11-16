@@ -25,13 +25,15 @@ data, reports a fake event handler, or pretends a memory write occurred.
 * FC 27 `FC27.exe`, SHA-256
   `d81a7a7465718fddcf1eeffde1ee0f952cab69b2c4771ad2aca29c381cd9d5e9`,
   running under GE-Proton11-12.
-* Caller-supplied FC 27 metadata XML (not redistributed); 268/268
-  metadata tables matched the live table manager and 263 fixed-row table
-  layouts verified.
+* External FC 27 metadata XML (not redistributed): 268/268 metadata
+  tables matched and 263 fixed-row layouts verified. The embedded
+  profile covers 4 tables and revalidates its listed fields live.
 * Live `players` table: 4CC `CZUM`, 152 fields, 156-byte records,
   22,098 slots, 27,000 capacity, 284 invalid markers, 21,814 valid rows.
-* The Lua runtime exposes 268 tables whose metadata matches the live
-  descriptors; `LOGGER` output and `MessageBox` are shown in the GUI.
+* With external XML, the Lua runtime exposed 268 tables whose metadata
+  matched the live descriptors. The embedded minimal profile exposes 4
+  tables (`players` plus the three name tables). `LOGGER` output and
+  `MessageBox` are shown in the GUI.
 
 ## Compatibility matrix
 
@@ -45,7 +47,7 @@ data, reports a fake event handler, or pretends a memory write occurred.
 | `LE.game_size` | `integer field` | integer | Connected | read | Supported and tested | WP6 Lua runtime | `lua_compat::tests::le_version_and_db_lookup` | FC27.exe module size. |
 | `LE.game_name` | `string field` | string | Connected | read | Supported and tested | WP6 Lua runtime | `lua_compat::tests::le_version_and_db_lookup` | FC27.exe. |
 | `LE.db` | `table object` | table | Connected + metadata | read | Supported and tested | local lua/libs/v2/imports/t3db/db.lua | `lua_compat::tests::le_version_and_db_lookup` | Read-only database facade. |
-| `LE.db.tables_count` | `integer field` | integer | Connected + metadata | read | Partially supported | local db.lua, t3db.lua | `lua_compat::tests::le_version_and_db_lookup` | Reports the actual metadata/live table count (268 in the tested build), not the old hardcoded 201. |
+| `LE.db.tables_count` | `integer field` | integer | Connected + metadata | read | Partially supported | local db.lua, t3db.lua | `lua_compat::tests::le_version_and_db_lookup` | Reports the active profile table count: 4 in the embedded profile, 268 with external XML in the tested build. |
 | `LE.db:GetTable` | `table GetTable(string name)` | table\|nil | Connected + metadata | read | Supported and tested | local db.lua | `lua_compat::tests::le_version_and_db_lookup` | Unknown names return nil, matching Live Editor. |
 | `LE.db:GetTableByShortname` | `table GetTableByShortname(string 4cc)` | table\|nil | Connected + metadata | read | Supported and tested | local db.lua | `lua_compat::tests::le_version_and_db_lookup` | Unknown 4CC returns nil. |
 | `LE.db:GetTableNames` | `table GetTableNames()` | array<string> | Connected + metadata | read | Supported and tested | WP6 addition | `lua_compat::tests::le_version_and_db_lookup` | FC27LE convenience; not present in every Live Editor version. |

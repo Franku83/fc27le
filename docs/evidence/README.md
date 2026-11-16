@@ -45,7 +45,7 @@ command output that contains local paths or session addresses.
 - metadata: 268/268 tables matched, 263 fixed-row layouts verified
 - players: 22,098 slots / 27,000 capacity / 284 invalid / 21,814 valid
 - names: 21,814 / 21,814 resolved, 0 errors
-- Lua: 268 tables exposed; read-only scan visited 21,814 valid players
+- Lua: 4 tables with the embedded profile, 268 with external XML; read-only scan visited 21,814 valid players
 - automated tests: 78 passed, 0 failed
 
 PIDs, addresses, mapping counts and table data are session-specific. A hash

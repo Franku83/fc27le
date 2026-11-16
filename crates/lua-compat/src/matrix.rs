@@ -143,7 +143,7 @@ pub static API_MATRIX: &[ApiEntry] = &[
         PartiallySupported,
         "local db.lua, t3db.lua",
         "lua_compat::tests::le_version_and_db_lookup",
-        "Reports the actual metadata/live table count (268 in the tested build), not the old hardcoded 201."
+        "Reports the active profile table count: 4 in the embedded profile, 268 with external XML in the tested build."
     ),
     e!(
         "LE.db:GetTable",
