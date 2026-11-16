@@ -111,9 +111,10 @@ permission error, not escalation.
 | Pattern scans | PE sections only; per-anchor caps (64 MiB event, 160 MiB DB); configurable |
 | Database service path | verified read-only (`fc27le db`): 2 databases, 273 table descriptors |
 | Database metadata parser | caller-supplied XML; 268/268 tables and field widths validated live |
-| Players descriptor | verified as `CZUM` (152 fields, 156-byte records); enumeration gated on row count |
+| Players descriptor | verified as `CZUM` (152 fields, 156-byte records); live count 22,098 / capacity 27,000 |
 | Build SHA-256 | opt-out with `--no-hash` |
-| `players` table | **not compatible / not implemented** (descriptor resolved, enumeration gated) |
+| `players` table | **supported read-only** on the verified build with a matching caller-supplied metadata XML; emits numeric fields only (no names) |
+| Player/team names | **not implemented** (compressed string pool unresolved) |
 | Memory writes, hooks, injection | **not implemented by design** |
 | Overlay UI | **not implemented by design** |
 | Windows backend | **stub**, not compiled/tested on Windows |
@@ -134,7 +135,8 @@ permission error, not escalation.
 | `probe` pattern missing | wrong build or wrong pattern | do not use the DB path; re-research |
 | `db` registry key missing | build does not match the verified service registry | treat as unsupported build |
 | `db --metadata` focus fails | metadata/build mismatch or incomplete field set | do not enumerate; re-check the descriptor |
-| `insufficient_evidence` (3) | player resolver gated | read `players --explain` |
+| `players` returns `insufficient_evidence` | no metadata, wrong build, count/capacity mismatch, unstable snapshots, or invalid-marker/index disagreement | read the JSON `checks`; do not bypass the gate |
+| `players` emits no records | zero slots or all slots invalid | verify the game has loaded a squad/career database |
 
 ## 8. Anti-cheat / DRM / online boundary
 
@@ -156,6 +158,14 @@ A build is "supported" for read-only metadata when:
 3. `probe` resolves the PE image and sections;
 4. every anchor used by a feature verifies at its expected RVA.
 
-Player listing will require all of the above **plus** the evidence gates in
-`docs/research_roadmap.md`. Until then it is intentionally unavailable on every
-build.
+Player enumeration additionally requires:
+
+1. a caller-supplied metadata XML that validates against the live manager;
+2. `players` resolving to the verified descriptor with all 152 field widths;
+3. `slot_count <= capacity`, `invalid_rows == +0x7E`, and a matching primary-index
+   count;
+4. two byte-identical snapshots of the verified record range.
+
+If any condition fails, the reader exits `insufficient_evidence` instead of
+emitting partial or guessed data. Names are not emitted until the compressed
+string pool is decoded and validated.

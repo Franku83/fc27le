@@ -25,7 +25,7 @@ crates/
   platform-linux/    fc27-platform-linux
   platform-windows/  fc27-platform-windows   (documented stub)
   fc27/              fc27-game (profile, discovery, anchors, build identity,
-                     db_service, db_metadata, capability/evidence gates)
+                     db_service, db_metadata, player_store, capability/evidence gates)
   cli/               fc27-cli -> binary `fc27le`
 ```
 
@@ -121,11 +121,16 @@ db(pid)
 ```
 
 ```text
-players(pid)
-  -> resolve module
-  -> fc27_game::players::resolve()
-  -> Err(InsufficientEvidence)  // by design until evidence exists
-  -> capability report, exit code 3
+players(pid, --metadata FILE)
+  -> resolve module + verify the DB service path
+  -> parse metadata, validate all table/field mappings
+  -> resolve players = CZUM (152 field widths, 156-byte rows)
+  -> read +0x78 capacity, +0x7C slot count, +0x7E invalid count
+  -> read the verified slot range twice; require identical snapshots
+  -> skip slots whose last byte has bit 7 set
+  -> decode playerid/overallrating/potential/height/weight (LSB-first + bias)
+  -> cross-check invalid rows and the primary-index count
+  -> checks + numeric records; names are never invented
 ```
 
 ## 4. Linux memory-reader invariants
@@ -268,9 +273,18 @@ in the game process.
 `fc27_game::db_metadata` parses a caller-supplied descriptor and validates it
 against the live manager. On the tested build, 268/268 metadata tables matched
 and **`players` resolved to `CZUM`** (152 fields, 156-byte records, 1244 field
-bits + 4 padding bits, non-zero data pointer). The descriptor is resolved, but
-record enumeration remains gated on the row count/data extent and on
-authoritative CFS metadata extraction. The XML is never bundled.
+bits + 4 padding bits, non-zero data pointer).
+
+`fc27_game::player_store` then uses the descriptor's own storage counters:
+`+0x78` capacity, `+0x7C` slot count, `+0x7E` invalid-marker count, and the
+high bit of each record's last byte as the invalid predicate. On the tested
+build the `CZUM` capture was 22,098 slots / 27,000 capacity / 284 invalid /
+21,814 valid, with the primary-index count also 21,814. The reader requires two
+byte-identical snapshots and emits only five verified numeric fields. Names
+remain blocked on the compressed string pool, so no name is fabricated. The
+metadata XML is never bundled.
+
+See `docs/research/player_storage.md`.
 
 ## 10. Error model and exit codes
 

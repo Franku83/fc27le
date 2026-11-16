@@ -21,18 +21,21 @@ anti-cheat/DRM, or modify game files, prefixes or saves.**
 | Verified pattern anchors | implemented (event dispatcher + DB service path verified live) |
 | Database service / table manager | **verified read-only** (`fc27le db`) |
 | Players table descriptor | **verified with caller-supplied metadata** (`players` = `CZUM`, 152 fields) |
-| Player enumeration | **gated** on row count/data extent and CFS metadata extraction |
+| Player enumeration | **implemented read-only** (`fc27le players --metadata`; numeric fields only) |
+| Player/team names | **blocked** on the compressed string pool |
 | Windows backend | documented stub, not compiled or tested on Windows |
 
 The player-data target chain is:
 
 ```text
 Process Discovery -> Memory Reader -> Structure Resolver -> Player Data -> CLI
-        done             done          NOT YET VERIFIED        -         gated
+        done             done             done (numeric)        done       done
 ```
 
-`fc27le players --explain` prints the exact missing evidence. The project stops
-there rather than fabricating offsets or pointer chains.
+`fc27le players <pid> --metadata FILE --limit 20` enumerates verified numeric
+records. Names are not invented: the string pool is still compressed/unresolved,
+so the tool emits player IDs. Without `--metadata`, `fc27le players --explain`
+prints the remaining evidence gates.
 
 ## Quick start
 
@@ -85,7 +88,8 @@ FC 27 game: pid 19349 (FC27.exe, score 150)
 | `scan <pid> --module FC27.exe --pattern "48 89 ?? ..."` | Bounded PE-section pattern scan |
 | `probe <pid> [--no-hash] [--skip-anchors]` | Full reconnaissance report + anchor verification |
 | `db <pid> [--metadata FILE] [--focus-table players]` | Verify the DB path; resolve/validate metadata names against live descriptors |
-| `players <pid> --explain` | Evidence-gated player-enumeration report (exit 3) |
+| `players <pid> --metadata FILE [--limit N]` | Verified read-only numeric player records (exit 3 if evidence fails) |
+| `players <pid> --explain` | Remaining evidence-gate report (exit 3) |
 | `capabilities` | Implemented / blocked / out-of-scope matrix |
 | `selftest` | Controlled end-to-end memory-reader test |
 
@@ -133,6 +137,12 @@ GE-Proton11-12:
   live descriptors and all 268 field-width sets matched; `players` resolves to
   **`CZUM`** with 152 fields, 156-byte records, a 1247-bit mask and a live data
   pointer; `teamplayerlinks` resolves to **`RrqT`** (16 fields);
+* WP4 verified the player store: **22,098 slots**, **27,000 capacity**, **284
+  invalid markers**, **21,814 valid rows**, and a primary-index count of
+  **21,814**. The reader uses the u16 slot count at `+0x7C`, the last-byte
+  invalid marker, and two identical snapshots. It emits playerid,
+  overallrating, potential, height and weight; names remain blocked on the
+  compressed string pool;
 * `proprietary editor DLL` and `activation module` were **not** loaded (the game was
   started directly, not through the Live Editor launcher);
 * `third-party-module.dll` **was** loaded, matching the third-party build build in the
@@ -148,6 +158,7 @@ Evidence snapshots live in [`docs/evidence/`](docs/evidence/).
 * [`docs/fc27_reconnaissance.md`](docs/fc27_reconnaissance.md) — FC 27 process-discovery and anchor report
 * [`docs/research/db_interface.md`](docs/research/db_interface.md) — WP1: LWSQL/ContentDB reverse engineering
 * [`docs/research/db_metadata.md`](docs/research/db_metadata.md) — WP3: metadata format, parser and `players` resolution
+* [`docs/research/player_storage.md`](docs/research/player_storage.md) — WP4: verified player storage, counts, validity and enumeration
 * [`docs/research_roadmap.md`](docs/research_roadmap.md) — evidence gates and next investigation steps
 * [`docs/compatibility.md`](docs/compatibility.md) — supported environments, builds and limitations
 

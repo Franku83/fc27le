@@ -1,30 +1,11 @@
-//! Evidence-gated player listing.
+//! Player-capability report and remaining evidence gates.
 //!
-//! The target chain is:
-//! `Process Discovery -> Memory Reader -> Structure Resolver -> Player Data -> CLI`.
-//!
-//! Discovery, reading and build/anchor verification are implemented. The
-//! structure resolver for the player table is **not** implemented because the
-//! required game-side evidence does not exist in the previous research or in
-//! this project's observations. Rather than inventing offsets, [`resolve`]
-//! returns [`fc27_core::Error::InsufficientEvidence`] and
-//! [`capability_report`] lists exactly what is missing.
+//! Numeric player enumeration is implemented in
+//! [`crate::player_store`] and exposed by `fc27le players <pid> --metadata
+//! FILE`. This module documents the pieces that are still blocked: authoritative
+//! metadata extraction, name/string decoding, and a career-state check.
 
-use fc27_core::{Error, Result};
-use fc27_process::{ModuleInfo, ProcessHandle};
 use serde::Serialize;
-
-#[derive(Debug, Clone, Serialize)]
-pub struct Player {
-    pub player_id: u32,
-    pub first_name: Option<String>,
-    pub last_name: Option<String>,
-    pub common_name: Option<String>,
-    pub team_id: Option<u32>,
-    pub overall: Option<u16>,
-    pub potential: Option<u16>,
-    pub position: Option<String>,
-}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct MissingEvidence {
@@ -46,46 +27,48 @@ pub fn missing_evidence() -> Vec<MissingEvidence> {
     vec![
         MissingEvidence {
             requirement: "Authoritative metadata extraction".to_string(),
-            why: "A caller-supplied FC 27 metadata XML resolves `players` to 4CC `CZUM` and all \
-                  152 field widths match the live descriptor. The game's own copy of \
-                  data/db/fifa_ng_db-meta.xml is inside encrypted/compressed CFS; extracting it \
-                  remains an unresolved dependency, so the CLI currently requires \
-                  --metadata FILE."
+            why: "Player enumeration needs the metadata name -> 4CC map. A caller-supplied FC 27 \
+                  descriptor resolves `players` to `CZUM` and validates 152/152 field widths, but \
+                  the game's own data/db/fifa_ng_db-meta.xml is inside encrypted/compressed CFS. \
+                  The CLI therefore requires --metadata FILE and never bundles the XML."
                 .to_string(),
             how_to_collect: "Reverse the CFS codec/key for the metadata entry (contentsb.toc, \
                              offset 0x7E0B8A, size 0x158CB2 in the tested build) or document a \
-                             reproducible read-only extraction path. Do not bundle the XML."
+                             reproducible read-only extraction path. Do not redistribute the XML."
                 .to_string(),
         },
         MissingEvidence {
-            requirement: "Players row count and data extent".to_string(),
-            why: "The descriptor is resolved: CZUM, 152 fields, record size 156 bytes, bit mask \
-                  1247, data pointer non-zero, 1244 field bits plus 4 padding bits. The table \
-                  header has no verified row count/data length (+0x50 is zero), so enumeration \
-                  bounds are not established."
+            requirement: "Player/team name storage".to_string(),
+            why: "`playernames` (BGwe) stores a 12-byte row with a 4-byte string-pool reference \
+                  and 16-bit name/commentary IDs. The referenced pool is Huffman-compressed; no \
+                  verified decoder exists yet. The numeric player fields are emitted without \
+                  names rather than inventing them."
                 .to_string(),
-            how_to_collect: "Locate the row count/data extent for the CZUM data buffer (or the \
-                             containing DB allocation), validate it against record boundaries, \
-                             and only then enable bounded enumeration."
+            how_to_collect: "Identify the string-pool base and the Huffman tables used by the \
+                             `DBOFIELDTYPE_STRING_COMPRESSED_*` codec, then validate decoded names \
+                             against independent roster data before emitting them."
                 .to_string(),
-        },
-        MissingEvidence {
-            requirement: "String storage model".to_string(),
-            why: "Player names may be inline, pointer-based, interned or resolved through name \
-                  tables. Guessing would produce plausible but false output."
-                .to_string(),
-            how_to_collect:
-                "Identify the string allocator/table from the DB metadata and validate \
-                             every resolved pointer against mapped, readable memory before use."
-                    .to_string(),
         },
         MissingEvidence {
             requirement: "Career-mode context check".to_string(),
-            why: "The table may exist in multiple modes or only after a career save is loaded. \
-                  Without a verified state check the tool could read stale or menu-mode data."
+            why: "The table exists in the live database, but the tool does not yet verify that a \
+                  career/squad context is active. A menu-mode or partially loaded database could \
+                  expose stale rows."
                 .to_string(),
             how_to_collect: "Locate the game-state object and the career-mode flag with the same \
-                             anchor discipline used for the event dispatcher."
+                             anchor discipline used for the event dispatcher, then require it \
+                             before enumeration."
+                .to_string(),
+        },
+        MissingEvidence {
+            requirement: "Build-specific revalidation".to_string(),
+            why: "The verified storage model (count at +0x7C, capacity at +0x78, invalid marker \
+                  at +0x7E, last-byte bit 7) was validated on one FC 27 build. Other builds must \
+                  not reuse these offsets blindly."
+                .to_string(),
+            how_to_collect: "Gate the player reader on the known FC27.exe SHA-256 or rerun the \
+                             cross-table invariant checks (count <= capacity, invalid rows == \
+                             +0x7E) before emitting records."
                 .to_string(),
         },
     ]
@@ -93,60 +76,48 @@ pub fn missing_evidence() -> Vec<MissingEvidence> {
 
 pub fn capability_report() -> PlayerCapabilityReport {
     PlayerCapabilityReport {
-        status: "blocked_on_evidence",
-        summary: "Read-only player enumeration is not implemented. The database manager, the \
-                  `players` descriptor (4CC CZUM), its 152 fields and its bit layout are verified \
-                  with a caller-supplied metadata XML and live descriptor checks. Enumeration is \
-                  gated on the row count/data extent and on extracting the game's own metadata \
-                  from CFS.",
+        status: "implemented_read_only",
+        summary: "Numeric player enumeration is implemented and verified read-only. With a \
+                  caller-supplied FC 27 metadata XML it resolves `players` to CZUM, validates the \
+                  152-field layout, scans all 22098 slots, skips the 284 invalid markers, and \
+                  emits playerid, overallrating, potential, height and weight from two identical \
+                  snapshots. Names remain unresolved (compressed string pool), so the output \
+                  contains numeric IDs, never invented names.",
         known_from_research: vec![
             "Live Editor Lua API: LE.db:GetTable(\"players\"), GetFirstRecord(), \
              GetNextValidRecord(), GetRecordFieldValue(record, \"playerid\"), \
              GetTeamIdFromPlayerId(playerid). Source: lua/scripts/list_players.lua."
                 .to_string(),
-            "Field names used by scripts and SQL: playerid, firstname, surname, commonname, \
-             overallrating, potential, teamid. Source: lua/DOC.MD, lua/scripts, FC27.exe strings."
+            "Live Editor's table reader uses descriptor +0x30 (first record), +0x44 (record \
+             size), +0x7C (u16 slot count) and treats a record as invalid when the high bit of \
+             its last byte is set. Source: lua/libs/v2/imports/t3db/table.lua."
                 .to_string(),
-            "A literal SQL query exists in FC27.exe at file offset 0xB20CB70 (VA 0x14B20CB70): \
-             \"SELECT playerid, overallrating FROM players ORDER BY overallrating DESC\". \
-             This is a string location, not a table locator."
+            "Live Editor's field reader extracts an LSB-first bit slice and adds the metadata \
+             low bound. Source: lua/libs/v2/imports/t3db/field.lua."
+                .to_string(),
+            "Static disassembly of proprietary editor DLL internal function confirms the same iteration \
+             bound and invalid-marker predicate."
                 .to_string(),
             "WP1 verified the runtime DB path: pattern RVA 0x7242D5E, registry key 0x0AE932D0, \
              two databases (g_db, a_mx), 273 table descriptors. Run `fc27le db <pid>`."
                 .to_string(),
             "Metadata validation (caller-supplied FC 27 XML): 268/268 tables matched live \
-             descriptors and 268/268 field-width sets matched; 263/268 tables fully satisfy the \
-             fixed-row fit check (the five exceptions are variable-string/commentary tables)."
+             descriptors and 268/268 field-width sets matched; `players` = CZUM, 152 fields, \
+             156-byte records, 1247-bit mask, 4 padding bits."
                 .to_string(),
-            "Resolved players descriptor: CZUM, 152 fields, record size 156 bytes, bit mask 1247, \
-             sum of field depths 1244 bits, 4 padding bits, data pointer non-zero. Source: \
-             docs/research/db_metadata.md."
+            "WP4 live cross-check: 232 non-empty tables satisfy slot_count <= capacity and \
+             invalid rows == u16 at +0x7E. For CZUM: 22098 slots, 27000 capacity, 284 invalid, \
+             21814 valid (equal to the primary-index count at index-object +0x1C)."
                 .to_string(),
-            "Resolved relationship table: teamplayerlinks is RrqT, 16 fields, record size 16 \
-             bytes, bit mask 127. Source: metadata XML + live descriptor validation."
-                .to_string(),
-            "The metadata XML is loaded by Live Editor from data/db/fifa_ng_db-meta.xml (CFS \
-             hash-list entry 1160535545681411833). The game's copy is inside CFS; the CLI accepts \
-             a caller-supplied metadata file and does not bundle it."
+            "Famous-player spot check after applying metadata biases: 20801 = 187 cm / 85 kg / \
+             ST; 200389 and 212831 decode as goalkeepers; 215914 = 168 cm / CDM."
                 .to_string(),
         ],
         missing_evidence: missing_evidence(),
-        policy: "Do not fabricate offsets, pointer chains or record layouts. Stop at the evidence \
-                 gate and document what is missing.",
+        policy: "Do not fabricate offsets, pointer chains, names or record layouts. Read only the \
+                 verified range, skip invalid slots, require two identical snapshots, and stop at \
+                 the evidence gate when a check fails.",
     }
-}
-
-/// Attempt to resolve the player table.
-///
-/// Always returns [`Error::InsufficientEvidence`] until the missing evidence is
-/// collected. The signature exists so the future implementation has a stable
-/// place to live.
-pub fn resolve(_handle: &dyn ProcessHandle, _game_module: &ModuleInfo) -> Result<Vec<Player>> {
-    Err(Error::InsufficientEvidence(
-        "the player table resolver has no verified game-side structure. Run `players --explain` \
-         to see the exact missing evidence."
-            .to_string(),
-    ))
 }
 
 #[cfg(test)]
@@ -164,9 +135,10 @@ mod tests {
     }
 
     #[test]
-    fn report_does_not_claim_player_data() {
+    fn report_claims_numeric_enumeration_only() {
         let report = capability_report();
-        assert_eq!(report.status, "blocked_on_evidence");
-        assert!(report.summary.contains("not implemented"));
+        assert_eq!(report.status, "implemented_read_only");
+        assert!(report.summary.contains("Numeric player enumeration"));
+        assert!(report.summary.contains("never invented names"));
     }
 }

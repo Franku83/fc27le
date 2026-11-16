@@ -11,8 +11,9 @@
 | Verified anchor scan | **done** | event dispatcher at `0x141CD3B5C`; DB service at `0x147242D5E` |
 | Database service / table manager | **done (read-only)** | `fc27le db`, `docs/research/db_interface.md` |
 | Players table descriptor | **resolved/verified** | `players` = `CZUM`, 152 fields, `db --metadata` |
-| Player record layout | **field widths verified** | 152/152 field widths; row count/extent pending |
-| Player listing | **gated** | `fc27le players --explain` exits 3 |
+| Player record layout | **verified** | 152/152 field widths; 22,098 slots; 27,000 capacity; 284 invalid markers |
+| Player enumeration | **implemented read-only** | `fc27le players --metadata`; 21,814 valid numeric rows |
+| Player/team names | **blocked** | compressed string pool unresolved |
 
 ### WP1 result (2026-11-16)
 
@@ -41,8 +42,9 @@ validated against the live table manager:
 
 The descriptor is resolved. The CLI exposes this as
 `fc27le db <pid> --metadata FILE`; the proprietary XML is not bundled.
-Enumeration remains gated on the row count/data extent and on authoritative CFS
-extraction. See `docs/research/db_metadata.md`.
+WP4 subsequently resolved the record count/data extent and enabled verified
+numeric enumeration. Names remain blocked on the compressed string pool. See
+`docs/research/player_storage.md`.
 
 The remaining work is *game-side structure discovery*, not process plumbing. This
 roadmap is ordered by shortest path and by how cheaply a wrong hypothesis can be
@@ -146,54 +148,58 @@ metadata XML is not bundled.
 1. **Authoritative CFS extraction** of `data/db/fifa_ng_db-meta.xml` (the
    `contentsb.toc` entry is not plaintext or standard zlib/gzip/LZ4/ZSTD; codec
    and key are unresolved).
-2. **Players row count/data extent** (`+0x50` is zero; enumeration bounds are
-   not verified).
+2. **Player/team names** (the string pool is Huffman-compressed; see WP5).
+
+The `CZUM` row count/data extent was resolved in WP4 (`+0x7C = 22,098`,
+`+0x78 = 27,000`, `+0x7E = 284`); `+0x50` is not a count.
 
 **Acceptance achieved:** descriptor resolved by metadata, 4CC validated against
 the live manager, record size/field count/data pointer checked, no guessed
 names or offsets.
 
-**Stop rule:** do not enumerate records until the row count/data extent is
-verified. Do not bundle or redistribute the proprietary XML.
+**Stop rule:** do not bundle or redistribute the proprietary XML. Do not guess
+names; emit player IDs until the string pool is decoded and validated.
 
-### WP4 — Derive and validate the record layout
+### WP4 — Derive and validate the record layout — **DONE**
 
-**Status:** the `players` descriptor (`CZUM`) is resolved and the bit layout is
-verified: 152 fields, 1244 depth bits, 156-byte rows, 4 padding bits, with every
-metadata field width matching its live field entry. The remaining WP4 task is
-the **record count and data extent**, then field-value validation on sampled
-rows.
+**Status (2026-11-16):** the `players` descriptor (`CZUM`) is resolved, the
+bit layout is verified (152 fields, 1244 depth bits, 156-byte rows, 4 padding
+bits), and the storage model is verified: slot count `u16 +0x7C`, capacity
+`u16 +0x78`, invalid-marker count `u16 +0x7E`, and validity by the high bit of
+the last record byte. Live capture: **22,098 slots / 27,000 capacity / 284
+invalid / 21,814 valid**, with the primary-index count also **21,814**. The
+following five fields are decoded and emitted:
+`playerid`, `overallrating`, `potential`, `height`, `weight`.
 
-Tasks:
+Tasks (completed):
 
-1. Start from the descriptor evidence: field entries at `+0x84` give a bit
-   offset and type in the first qword, and a bit width plus 4CC in the second
-   qword. The row layout is bit-packed (`+0x48 == +0x44*8 - 1` is confirmed for
-   all 273 tables).
-2. Implement the bit-reader semantics observed in `internal function` (types 0, 3,
-   4 and `0xD`), with explicit bounds checks for every field.
-3. Establish the `CZUM` row count/data extent, then iterate only within that
-   verified bound.
-4. Use diffs between known records: two players with different overall/potential
-   and known ids. A field is accepted only if it changes consistently.
-5. Validate types and ranges:
-   * `playerid` unique and positive;
-   * `overallrating` and `potential` within the game's rating range and
-     `potential >= overall` for most players;
-   * `birthdate` decodes to a plausible date;
-   * ids resolve through the same table/ID map used by the game.
-6. Resolve names only through the verified string model (WP5).
+1. Field entries at `+0x84` give bit offset, type, width and 4CC; the row layout
+   is bit-packed (`+0x48 == +0x44*8 - 1` holds for all 273 tables).
+2. The Rust reader implements bounds-checked LSB-first bit extraction and adds
+   the metadata `rangelow` bias.
+3. The slot count, capacity and invalid markers are read from the descriptor;
+   the reader does not assume `+0x50` is a count.
+4. Multiple decoded records were cross-checked against metadata ranges and
+   independent player identities (Ronaldo, Oblak, Van Dijk, Kanté, ...).
+5. Invalid slots are skipped by the marker, not by zero/name heuristics.
 
-**Deliverable:** a field table with offset, width, signedness, confidence and
-validation evidence. No field is added without a cross-check.
+**Deliverable:** `docs/research/player_storage.md` plus
+`crates/fc27/src/player_store.rs`. No field is emitted without a cross-check.
 
-**Stop rule:** if two candidate layouts both fit the observed values, do not pick
-one; design a discriminating observation (a player edit in-game is **not**
-permitted, so use naturally varying records or a save copy).
+**Stop rule:** if two candidate layouts both fit, do not pick one; design a
+discriminating observation (a player edit in-game is **not** permitted, so use
+naturally varying records or a save copy).
 
 ### WP5 — String model
 
 **Goal:** resolve first/last/common names safely.
+
+**WP4 finding (2026-11-16):** `playernames` (`BGwe`) has 12-byte rows:
+`u32 string-pool reference` at `+0x00`, `u16 nameid` at `+0x04`,
+`u16 commentaryid` at `+0x06`, `u32 zero` at `+0x08`. The referenced pool is
+Huffman-compressed (`HufCompressed`, `DBOFIELDTYPE_STRING_COMPRESSED_*` in the
+DLL); no verified decoder exists yet. The player output therefore emits numeric
+IDs, never names.
 
 Tasks:
 
@@ -202,6 +208,8 @@ Tasks:
 2. For every pointer: validate mapping + readable range + maximum length before
    reading; reject non-UTF-8 or implausible bytes.
 3. Cap string reads (for example 128 bytes) and record them as untrusted data.
+4. Decode the Huffman pool and validate names against independent roster data
+   before emitting them.
 
 **Stop rule:** if the model cannot be distinguished with static evidence, return
 IDs only and document that names are unresolved.
@@ -222,29 +230,34 @@ Tasks:
 `--assume-career-loaded` flag with a prominent warning, or keep the command
 disabled.
 
-### WP7 — Read-only CLI player listing
+### WP7 — Read-only CLI player listing — **IMPLEMENTED (numeric subset)**
 
-**Goal:** the Phase 4 deliverable.
+**Status (2026-11-16):** implemented as:
 
 ```text
-fc27le players <pid> [--limit N] [--team ID] [--json]
+fc27le players <pid> --metadata FILE [--limit N] [--json]
 ```
 
-Requirements:
+Requirements met:
 
-* require a caller-supplied metadata XML (or an authoritative CFS extraction);
-* resolve `players` to `CZUM` and validate 152/152 field widths before output;
-* establish and use a verified `CZUM` row count/data extent;
-* iterate at most a configured cap (for example 100,000 records);
-* validate every field before output;
-* never write; never call a game function; never install a hook;
-* on any structural inconsistency, fail closed with `InsufficientEvidence`;
-* include provenance in JSON: build hash, anchor ids, descriptor address, table
-  count, metadata digest, validation summary.
+* requires a caller-supplied metadata XML (the game's own copy still needs CFS
+  extraction);
+* resolves `players` to `CZUM` and validates 152/152 field widths before output;
+* uses the verified slot count/capacity/invalid markers and skips invalid slots;
+* reads the verified range twice and requires byte-identical snapshots;
+* validates every emitted field against its metadata range;
+* never writes, calls a game function or installs a hook;
+* fails closed with `InsufficientEvidence` on any structural inconsistency;
+* includes provenance in JSON: descriptor, data pointer, counts, field layout,
+  metadata digest, validation checks and both snapshot statuses.
+
+Not yet implemented: names/team IDs in the player output, team filters, and the
+career-state check. `playerid` is the stable identifier until WP5 lands.
 
 **Definition of done:** on a disposable career save, the listing matches the
 in-game squad/player data for a spot-checked sample, and every check above has a
-reproducible artifact.
+reproducible artifact. The numeric fields are spot-checked; the save/career
+comparison remains open.
 
 ## 5. Parallel track — save-file research
 
@@ -299,13 +312,18 @@ No fuzzing against the live process. No writes, no function calls, no hooks.
 
 ## 9. Recommended next action
 
-Proceed with the two remaining WP3/WP4 dependencies:
+WP4 is complete. The next work item is **WP5: decode the compressed string
+pool** so player and team names can be emitted (or explicitly remain IDs).
 
-1. **CFS extraction:** recover `data/db/fifa_ng_db-meta.xml` from
+1. **String pool:** identify the base and Huffman tables for the
+   `DBOFIELDTYPE_STRING_COMPRESSED_*` codec used by `playernames` (`BGwe`).
+   Validate decoded names against independent roster data before emitting them.
+2. **CFS metadata extraction:** recover `data/db/fifa_ng_db-meta.xml` from
    `contentsb.toc` (entry at `0x7E0B8A`, size `0x158CB2`) by identifying its
    codec/key. Do not bundle the XML.
-2. **Row extent:** locate the `CZUM` row count/data extent, validate record
-   boundaries, and only then enable bounded enumeration.
+3. **Career-state check (WP6):** locate a reliable career-mode signal and gate
+   the player command on it.
 
-`players = CZUM` is already resolved and validated; do not re-guess 4CCs or
-field widths. If either dependency cannot be verified, stop and report it.
+`players = CZUM`, the 22,098/27,000/284 storage model and the five numeric fields
+are already verified; do not re-guess them. If a dependency cannot be verified,
+stop and report it.

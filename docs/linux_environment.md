@@ -209,7 +209,12 @@ are not in the game process; Live Editor loads them from
 `data/db/fifa_ng_db-meta.xml`. With a caller-supplied FC 27 metadata XML,
 `fc27le db <pid> --metadata FILE` validated 268/268 tables and resolved
 `players` to `CZUM` (152 fields, 156-byte records, 4 padding bits, non-zero data
-pointer). See `docs/research/db_metadata.md`.
+pointer). WP4 then verified the storage counters: `+0x78` capacity, `+0x7C`
+slot count, `+0x7E` invalid markers, and validity by the high bit of the last
+record byte. The live capture was 22,098 slots / 27,000 capacity / 284 invalid
+/ 21,814 valid. `fc27le players --metadata FILE` emits the five verified
+numeric fields; names remain blocked. See `docs/research/db_metadata.md` and
+`docs/research/player_storage.md`.
 
 ## 7. Linux process-inspection permissions
 

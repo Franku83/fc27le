@@ -69,7 +69,7 @@ fn discover_emits_valid_json() {
 }
 
 #[test]
-fn capabilities_lists_the_evidence_gate() {
+fn capabilities_lists_verified_player_reader() {
     let output = Command::new(binary())
         .args(["capabilities", "--json"])
         .output()
@@ -83,7 +83,13 @@ fn capabilities_lists_the_evidence_gate() {
         .iter()
         .find(|item| item["id"] == "player-listing")
         .expect("player-listing capability");
-    assert_eq!(player["status"], "blocked_on_evidence");
+    assert_eq!(player["status"], "implemented_read_only");
+    assert!(
+        player["note"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("Names are not emitted")
+    );
 }
 
 #[test]

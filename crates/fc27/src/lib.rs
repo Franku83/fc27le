@@ -17,6 +17,7 @@ pub mod capabilities;
 pub mod db_metadata;
 pub mod db_service;
 pub mod discovery;
+pub mod player_store;
 pub mod players;
 pub mod profile;
 

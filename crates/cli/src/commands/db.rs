@@ -1,15 +1,12 @@
-use std::path::Path;
-
 use fc27_core::{Result, units::format_bytes};
 use fc27_game::anchors::ScanOptions;
-use fc27_game::build_identity::sha256_file;
-use fc27_game::db_metadata::{MetadataValidation, parse_metadata_xml, validate};
+use fc27_game::db_metadata::{MetadataValidation, validate};
 use fc27_game::db_service::inspect;
 use fc27_process::ProcessHandle;
 use serde::Serialize;
 
 use crate::cli::DbArgs;
-use crate::commands::{open_process, require_module};
+use crate::commands::{load_metadata, open_process, require_module};
 use crate::output::print_json;
 
 #[derive(Debug, Serialize)]
@@ -41,24 +38,12 @@ pub fn run(args: &DbArgs, json: bool) -> Result<u8> {
     let report = inspect(&process, &module, options)?;
 
     let metadata = if let Some(path) = &args.metadata {
-        let path_object = Path::new(path);
-        let metadata_size = std::fs::metadata(path_object)
-            .map_err(|error| fc27_core::Error::io_context(format!("stat {path}"), error))?
-            .len();
-        if metadata_size > 16 * 1024 * 1024 {
-            return Err(fc27_core::Error::InvalidInput(format!(
-                "metadata file {path} is larger than the 16 MiB safety cap"
-            )));
-        }
-        let xml = std::fs::read_to_string(path_object)
-            .map_err(|error| fc27_core::Error::io_context(format!("read {path}"), error))?;
-        let parsed = parse_metadata_xml(&xml)?;
-        let validation = validate(&parsed, &report.tables, &process, &args.focus_table)?;
-        let sha256 = sha256_file(path_object)?;
+        let loaded = load_metadata(path)?;
+        let validation = validate(&loaded.parsed, &report.tables, &process, &args.focus_table)?;
         Some(MetadataOutput {
             path: path.clone(),
-            size_bytes: metadata_size,
-            sha256,
+            size_bytes: loaded.size_bytes,
+            sha256: loaded.sha256,
             validation,
         })
     } else {

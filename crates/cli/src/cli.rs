@@ -229,7 +229,19 @@ pub struct PlayersArgs {
     #[arg(long, default_value = "FC27.exe")]
     pub module: String,
 
-    /// Print the full missing-evidence list.
+    /// Caller-supplied database metadata XML used to resolve `players` to its 4CC.
+    #[arg(long, value_name = "FILE")]
+    pub metadata: Option<String>,
+
+    /// Maximum player records to emit (the full store is still validated).
+    #[arg(long, default_value_t = 20)]
+    pub limit: usize,
+
+    /// Safety cap for the database-service pattern scan, in MiB.
+    #[arg(long, default_value_t = 160)]
+    pub max_mib: u64,
+
+    /// Print the full missing-evidence list instead of enumerating.
     #[arg(long)]
     pub explain: bool,
 }

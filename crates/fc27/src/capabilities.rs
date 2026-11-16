@@ -84,18 +84,21 @@ pub const CAPABILITIES: &[Capability] = &[
     },
     Capability {
         id: "player-listing",
-        name: "Read the player table from process memory",
-        status: CapabilityStatus::BlockedOnEvidence,
-        evidence: "lua/scripts/list_players.lua; db_metadata validation; `fc27le db --metadata`",
-        note: "The players descriptor is verified as CZUM (152 fields, 156-byte records), but the \
-               row count/data extent and authoritative CFS metadata extraction are unresolved.",
+        name: "Read verified numeric player records from process memory",
+        status: CapabilityStatus::ImplementedReadOnly,
+        evidence: "crates/fc27/src/player_store.rs; lua/.../t3db/table.lua + field.lua; \
+                   proprietary editor DLL internal function; live `fc27le players --metadata` validation",
+        note: "Resolves players = CZUM, validates count/capacity/invalid markers, requires two \
+               identical snapshots, and emits playerid/overallrating/potential/height/weight. \
+               Names are not emitted because the string pool is still compressed/unresolved.",
     },
     Capability {
         id: "team-and-competition-names",
         name: "Resolve team, league and competition names",
         status: CapabilityStatus::BlockedOnEvidence,
         evidence: "lua/DOC.MD GetTeamName / GetCompetitionNameByID; FC27.exe schema strings",
-        note: "Same missing database-layout evidence as player listing.",
+        note: "Numeric team/league relationships are resolved, but the name string pool uses a \
+               compressed string type whose decoder is not yet verified.",
     },
     Capability {
         id: "career-save-parsing",
@@ -165,10 +168,10 @@ mod tests {
     }
 
     #[test]
-    fn player_listing_is_gated() {
+    fn player_listing_is_read_only() {
         assert_eq!(
             capability("player-listing").unwrap().status,
-            CapabilityStatus::BlockedOnEvidence
+            CapabilityStatus::ImplementedReadOnly
         );
     }
 
