@@ -4,6 +4,8 @@
 //! backend lives in `fc27-platform-linux`; the Windows backend is intentionally
 //! a documented stub until it can be tested on Windows.
 
+#![forbid(unsafe_code)]
+
 pub mod backend;
 pub mod classify;
 pub mod modules;

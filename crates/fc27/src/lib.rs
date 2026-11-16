@@ -9,6 +9,8 @@
 //!
 //! Nothing in this crate fabricates an offset, pointer chain or record layout.
 
+#![forbid(unsafe_code)]
+
 pub mod anchors;
 pub mod build_identity;
 pub mod capabilities;

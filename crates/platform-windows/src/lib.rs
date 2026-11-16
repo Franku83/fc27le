@@ -5,6 +5,8 @@
 //! This crate is a deliberate, documented stub. The Linux backend is the only
 //! backend that has been exercised against FC 27. A Windows implementation must
 //! be written and tested on Windows before any capability is claimed.
+
+#![forbid(unsafe_code)]
 //!
 //! When `cfg(windows)` is active, [`WindowsProvider::open`] returns
 //! [`fc27_core::Error::Unsupported`] with an explicit message. The module
@@ -12,8 +14,6 @@
 //! `OpenProcess(PROCESS_VM_READ | PROCESS_QUERY_LIMITED_INFORMATION)`,
 //! `ReadProcessMemory`, `VirtualQueryEx` and `EnumProcessModules` can be added
 //! without touching callers.
-
-use std::marker::PhantomData;
 
 use fc27_core::{Error, Result};
 use fc27_process::{Pid, ProcessHandle, ProcessInfo, ProcessProvider};
@@ -47,10 +47,4 @@ impl ProcessProvider for WindowsProvider {
     fn open(&self, _pid: Pid) -> Result<Box<dyn ProcessHandle>> {
         Err(Error::Unsupported(UNSUPPORTED_MESSAGE.to_string()))
     }
-}
-
-/// Zero-sized marker used by integration stubs and documentation tests.
-#[derive(Debug, Clone, Copy)]
-pub struct UnimplementedBackend {
-    _private: PhantomData<()>,
 }

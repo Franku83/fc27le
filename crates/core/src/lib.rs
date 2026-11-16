@@ -4,6 +4,8 @@
 //! the error type used across the workspace, bounded byte-pattern matching and
 //! small formatting helpers.
 
+#![forbid(unsafe_code)]
+
 pub mod error;
 pub mod hex;
 pub mod pattern;

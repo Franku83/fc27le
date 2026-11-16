@@ -128,6 +128,8 @@ players(pid)
    reading another region. `refresh_mappings()` exists for long-lived handles.
 6. **No privilege escalation.** The backend never invokes `ptrace`, never
    changes Yama, and never requests root.
+7. **No `unsafe`.** The workspace contains zero `unsafe` blocks. `/proc` is
+   accessed through `std::fs` and `FileExt::read_at`.
 
 Range validation is implemented with `plan_segments`, which walks the sorted
 mapping snapshot from the start address. This also allows a bounded read to cross
@@ -300,6 +302,11 @@ It must preserve the same invariants: no writes, no `WriteProcessMemory`, no
 `VirtualProtectEx`, no remote threads, no injection. Until that code is compiled
 and tested on Windows, `fc27-platform-windows` returns `Error::Unsupported` and
 the project does not claim Windows support.
+
+The crate currently carries `#![forbid(unsafe_code)]`. A real Windows backend
+will need a small, reviewed `unsafe` boundary around `windows-sys`; that attribute
+must be relaxed deliberately (with a documented audit) rather than removed
+silently.
 
 ## 13. Adding the player resolver (only with evidence)
 

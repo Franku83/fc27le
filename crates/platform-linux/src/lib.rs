@@ -4,6 +4,8 @@
 //! `O_RDONLY` and never exposes `ptrace`, `process_vm_writev`, `mprotect` or
 //! injection primitives.
 
+#![forbid(unsafe_code)]
+
 pub mod policy;
 pub mod process;
 pub mod procfs;

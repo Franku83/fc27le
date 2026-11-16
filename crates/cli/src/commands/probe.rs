@@ -2,7 +2,9 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use fc27_core::{Result, units::format_bytes};
-use fc27_game::anchors::{ANCHORS, AnchorVerification, ScanOptions, verify_anchor};
+use fc27_game::anchors::{
+    ANCHORS, AnchorVerification, ScanOptions, VerificationStatus, verify_anchor,
+};
 use fc27_game::build_identity::{BuildIdentity, identify_file};
 use fc27_game::profile::{PROTECTION_MODULE, THIRD_PARTY_MODULE, EAAC_MODULE, EDITOR_DLL, GAME_EXE};
 use fc27_process::{ModuleInfo, ModuleKind, Pid, ProcessHandle, modules::find_module};
@@ -210,10 +212,15 @@ pub fn run(args: &ProbeArgs, json: bool) -> Result<u8> {
         };
         for anchor in ANCHORS {
             let verification = verify_anchor(&process, anchor, options);
+            let confidence = if matches!(verification.status, VerificationStatus::Verified) {
+                "confirmed"
+            } else {
+                anchor.confidence
+            };
             observations.push(Observation {
                 id: anchor.id,
                 text: verification.message.clone(),
-                confidence: anchor.confidence,
+                confidence,
             });
             anchors.push(verification);
         }

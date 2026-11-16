@@ -74,6 +74,36 @@ pub fn run(args: &PlayersArgs, json: bool) -> Result<u8> {
         println!("\npolicy: {}", output.policy);
         if output.player_records.is_empty() {
             println!("\nNo player records were produced.");
+        } else {
+            println!(
+                "\nPlayers ({}): id / name / team / overall / potential / position",
+                output.player_records.len()
+            );
+            for player in &output.player_records {
+                let name = player
+                    .common_name
+                    .as_deref()
+                    .or(player.last_name.as_deref())
+                    .unwrap_or("-");
+                println!(
+                    "  {:>7}  {:<28} team={:<7} ovr={:<3} pot={:<3} pos={}",
+                    player.player_id,
+                    name,
+                    player
+                        .team_id
+                        .map(|value| value.to_string())
+                        .unwrap_or_else(|| "-".into()),
+                    player
+                        .overall
+                        .map(|value| value.to_string())
+                        .unwrap_or_else(|| "-".into()),
+                    player
+                        .potential
+                        .map(|value| value.to_string())
+                        .unwrap_or_else(|| "-".into()),
+                    player.position.as_deref().unwrap_or("-")
+                );
+            }
         }
     }
 

@@ -97,25 +97,6 @@ impl ProcessInfo {
             self.cmdline.join(" ")
         }
     }
-
-    /// True when this process is the FC 27 executable according to its
-    /// comm/cmdline/exe path. This is intentionally conservative; the game
-    /// scoring logic in `fc27-game` adds provenance and wine context.
-    pub fn looks_like_fc27(&self) -> bool {
-        if self.name.eq_ignore_ascii_case("FC27.exe") {
-            return true;
-        }
-        if let Some(exe) = &self.exe_path {
-            if exe.rsplit('/').next() == Some("FC27.exe") {
-                return true;
-            }
-        }
-        self.cmdline.iter().any(|arg| {
-            arg.rsplit(['\\', '/'])
-                .next()
-                .is_some_and(|file| file.eq_ignore_ascii_case("FC27.exe"))
-        })
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

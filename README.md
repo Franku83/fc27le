@@ -36,6 +36,7 @@ there rather than fabricating offsets or pointer chains.
 
 ```bash
 # Rust (once): https://rustup.rs
+# If cargo is not on PATH yet: source "$HOME/.cargo/env"
 cargo build --release
 
 # Verify the reader against a process owned by the project (no game needed)
@@ -96,6 +97,8 @@ Exit codes: `0` success, `1` operational error, `2` invalid input/limit,
 * The tool never changes gaming/runtime configuration, prefixes, game files or
   saves. The only optional file write is `read --output FILE` to a path the
   caller explicitly names.
+* The workspace contains **zero `unsafe` blocks**; all process access is safe
+  Rust on top of `/proc`.
 * Offline, single-player inspection only. Do not use it to interact with online
   services or anti-cheat.
 

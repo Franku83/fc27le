@@ -123,6 +123,12 @@ pub fn run(args: &MapsArgs, json: bool) -> Result<u8> {
     if let Some(filters) = (!output.filters.is_empty()).then(|| output.filters.join(", ")) {
         println!("filters: {filters}");
     }
+    if args.module.is_some() {
+        println!(
+            "note: Wine PE images may have anonymous sections not listed by --module; \
+             `modules` reports the full SizeOfImage."
+        );
+    }
     println!();
     for mapping in &output.mappings {
         println!(

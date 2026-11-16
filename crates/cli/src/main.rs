@@ -5,6 +5,8 @@
 //! * every read is bounded to 1 MiB and validated against the mapping snapshot,
 //! * there is no write, ptrace, inject or hook code path in the workspace.
 
+#![forbid(unsafe_code)]
+
 mod cli;
 mod commands;
 mod output;
