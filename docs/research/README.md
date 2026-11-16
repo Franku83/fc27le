@@ -5,6 +5,7 @@
 | [`db_interface.md`](db_interface.md) | WP1: runtime database interface, call graphs, table-manager layout, missing XML name map, WP2/WP3 recommendations |
 | [`db_metadata.md`](db_metadata.md) | WP3: metadata discovery/format, Rust parser, `players = CZUM` validation, remaining CFS dependency |
 | [`player_storage.md`](player_storage.md) | WP4: record storage, count/capacity/invalid markers, field encoding, verified numeric enumeration |
+| [`name_storage.md`](name_storage.md) | WP5: player-name Huffman pool, `dcplayernames`, `editedplayernames`, verified name resolution |
 | `rea_wp1_bundle.json` | local static analysis Evidence bundle exported after the WP1 session (349 records, 2026-11-16) |
 | `rea_wp3_bundle.json` | local static analysis Evidence bundle exported after the WP3 CFS/metadata session (64 records, 2026-11-16) |
 

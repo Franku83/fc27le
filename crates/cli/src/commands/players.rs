@@ -2,6 +2,7 @@ use fc27_core::{Error, Result};
 use fc27_game::anchors::ScanOptions;
 use fc27_game::db_metadata::validate;
 use fc27_game::db_service::inspect;
+use fc27_game::name_pool::{NameResolutionReport, PlayerNameResolver};
 use fc27_game::player_store::{PlayerScan, scan_players};
 use fc27_game::players::capability_report;
 use fc27_process::{Pid, ProcessHandle};
@@ -30,6 +31,7 @@ struct PlayersOutput {
     status: &'static str,
     metadata: MetadataInfo,
     scan: PlayerScan,
+    name_resolution: Option<NameResolutionReport>,
     policy: &'static str,
 }
 
@@ -69,7 +71,28 @@ pub fn run(args: &PlayersArgs, json: bool) -> Result<u8> {
         ));
     }
 
-    let scan = scan_players(&process, &loaded.parsed, &report.tables, args.limit)?;
+    let mut scan = scan_players(&process, &loaded.parsed, &report.tables, args.limit)?;
+
+    let name_resolution = if args.no_names {
+        None
+    } else {
+        let resolver = PlayerNameResolver::load(&process, &loaded.parsed, &report.tables)?;
+        for record in &mut scan.records {
+            let resolved = resolver.resolve_player(
+                record.player_id,
+                record.first_name_id,
+                record.last_name_id,
+                record.common_name_id,
+            );
+            record.first_name = resolved.first_name;
+            record.last_name = resolved.last_name;
+            record.common_name = resolved.common_name;
+            record.display_name = resolved.display_name;
+            record.name_source = Some(resolved.source.to_string());
+            record.name_error = resolved.error;
+        }
+        Some(resolver.report(&scan.records))
+    };
 
     let output = PlayersOutput {
         pid: args.pid,
@@ -90,8 +113,10 @@ pub fn run(args: &PlayersArgs, json: bool) -> Result<u8> {
             focus_verified: validation.focus_verified,
         },
         scan,
+        name_resolution,
         policy: "Read-only: no writes, no hooks, no DLL injection, no game-function calls. \
-                 Invalid slots are skipped; only the five verified numeric fields are emitted.",
+                 Invalid slots are skipped; only verified numeric fields and names from the \
+                 verified name tables are emitted. Missing names stay null and are reported.",
     };
 
     if json {
@@ -100,7 +125,11 @@ pub fn run(args: &PlayersArgs, json: bool) -> Result<u8> {
         print_human(&output);
     }
 
-    if output.scan.all_checks_passed {
+    let names_ok = output
+        .name_resolution
+        .as_ref()
+        .is_none_or(|names| names.all_checks_passed);
+    if output.scan.all_checks_passed && names_ok {
         Ok(0)
     } else {
         Ok(3)
@@ -153,6 +182,37 @@ fn print_human(output: &PlayersOutput) {
         scan.slots_scanned,
         scan.skipped_invalid()
     );
+    if let Some(names) = &output.name_resolution {
+        println!(
+            "names:            resolved ({} playernames row(s), {} tree node(s); {} dcplayernames row(s); {} edited override(s))",
+            names.playernames.table.rows,
+            names.playernames.tree_nodes,
+            names
+                .dcplayernames
+                .as_ref()
+                .map(|table| table.rows.to_string())
+                .unwrap_or_else(|| "not loaded".to_string()),
+            names
+                .editedplayernames
+                .as_ref()
+                .map(|table| table.overrides.to_string())
+                .unwrap_or_else(|| "not loaded".to_string())
+        );
+        println!(
+            "                  emitted {} with names, {} without; {} name error(s)",
+            names.emitted_with_names, names.emitted_without_names, names.name_errors
+        );
+        println!(
+            "                  name checks: {}/{} passed",
+            names.checks.iter().filter(|check| check.passed).count(),
+            names.checks.len()
+        );
+        for note in &names.notes {
+            println!("  note:           {note}");
+        }
+    } else {
+        println!("names:            disabled (--no-names)");
+    }
     println!("\nfield layout:");
     for field in &layout.fields {
         println!(
@@ -180,14 +240,17 @@ fn print_human(output: &PlayersOutput) {
         if scan.truncated { ", truncated" } else { "" }
     );
     println!(
-        "  {:<6} {:>8}  {:>3}  {:>3}  {:>6}  {:>6}",
-        "slot", "playerid", "ovr", "pot", "height", "weight"
+        "  {:<6} {:>8}  {:<30}  {:>3}  {:>3}  {:>6}  {:>6}",
+        "slot", "playerid", "name", "ovr", "pot", "height", "weight"
     );
     for record in &scan.records {
+        let name = record.display_name.as_deref().unwrap_or("-");
+        let name: String = name.chars().take(30).collect();
         println!(
-            "  {:<6} {:>8}  {:>3}  {:>3}  {:>6}  {:>6}",
+            "  {:<6} {:>8}  {:<30}  {:>3}  {:>3}  {:>6}  {:>6}",
             record.record_index,
             record.player_id,
+            name,
             record.overall_rating,
             record.potential,
             record.height_cm,

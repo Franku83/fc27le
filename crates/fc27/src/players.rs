@@ -1,9 +1,10 @@
 //! Player-capability report and remaining evidence gates.
 //!
-//! Numeric player enumeration is implemented in
-//! [`crate::player_store`] and exposed by `fc27le players <pid> --metadata
-//! FILE`. This module documents the pieces that are still blocked: authoritative
-//! metadata extraction, name/string decoding, and a career-state check.
+//! Numeric player enumeration and player-name resolution are implemented in
+//! [`crate::player_store`] and [`crate::name_pool`], and exposed by
+//! `fc27le players <pid> --metadata FILE`. This module documents the pieces
+//! that are still blocked: authoritative metadata extraction, team/competition
+//! names, and a career-state check.
 
 use serde::Serialize;
 
@@ -38,15 +39,15 @@ pub fn missing_evidence() -> Vec<MissingEvidence> {
                 .to_string(),
         },
         MissingEvidence {
-            requirement: "Player/team name storage".to_string(),
-            why: "`playernames` (BGwe) stores a 12-byte row with a 4-byte string-pool reference \
-                  and 16-bit name/commentary IDs. The referenced pool is Huffman-compressed; no \
-                  verified decoder exists yet. The numeric player fields are emitted without \
-                  names rather than inventing them."
+            requirement: "Team and competition names".to_string(),
+            why: "Player names are resolved through `playernames` (Huffman), `dcplayernames` \
+                  (inline 46000+ IDs) and `editedplayernames` (per-player overrides). Team, \
+                  league and competition names use different tables/string fields and are not \
+                  yet exposed by the CLI."
                 .to_string(),
-            how_to_collect: "Identify the string-pool base and the Huffman tables used by the \
-                             `DBOFIELDTYPE_STRING_COMPRESSED_*` codec, then validate decoded names \
-                             against independent roster data before emitting them."
+            how_to_collect: "Resolve the relevant table/field 4CCs from the metadata, identify \
+                             whether each string is inline or pool-backed, and validate decoded \
+                             names against independent competition data before emitting them."
                 .to_string(),
         },
         MissingEvidence {
@@ -77,12 +78,14 @@ pub fn missing_evidence() -> Vec<MissingEvidence> {
 pub fn capability_report() -> PlayerCapabilityReport {
     PlayerCapabilityReport {
         status: "implemented_read_only",
-        summary: "Numeric player enumeration is implemented and verified read-only. With a \
-                  caller-supplied FC 27 metadata XML it resolves `players` to CZUM, validates the \
-                  152-field layout, scans all 22098 slots, skips the 284 invalid markers, and \
-                  emits playerid, overallrating, potential, height and weight from two identical \
-                  snapshots. Names remain unresolved (compressed string pool), so the output \
-                  contains numeric IDs, never invented names.",
+        summary: "Player enumeration and name resolution are implemented and verified read-only. \
+                  With a caller-supplied FC 27 metadata XML the CLI resolves `players` to CZUM, \
+                  validates the 152-field layout, scans all 22098 slots, skips the 284 invalid \
+                  markers, emits the five verified numeric fields, and resolves names through \
+                  `playernames` (Huffman pool), `dcplayernames` (IDs 46000+) and \
+                  `editedplayernames` overrides. A full live pass resolved 21814/21814 player \
+                  names with zero errors. Missing names stay null and are reported; no name is \
+                  invented.",
         known_from_research: vec![
             "Live Editor Lua API: LE.db:GetTable(\"players\"), GetFirstRecord(), \
              GetNextValidRecord(), GetRecordFieldValue(record, \"playerid\"), \
@@ -112,11 +115,27 @@ pub fn capability_report() -> PlayerCapabilityReport {
             "Famous-player spot check after applying metadata biases: 20801 = 187 cm / 85 kg / \
              ST; 200389 and 212831 decode as goalkeepers; 215914 = 168 cm / CDM."
                 .to_string(),
+            "WP5 name model: `playernames` rows carry a u32 pool offset at +0x00. The pool at \
+             descriptor +0x38 begins with a 138-node breadth-first Huffman tree (4 bytes per \
+             node; leaves are UTF-8 bytes shifted left 8), followed by length-prefixed, \
+             MSB-first bitstreams. The first offset (0x228) equals the tree size."
+                .to_string(),
+            "`dcplayernames` stores IDs 46000+ as 13-bit keys (stored value + 46000) plus a \
+             38-byte inline UTF-8 string. `editedplayernames` stores per-player 45-byte inline \
+             first/surname/common overrides. In the live capture: 43066 playernames, 2279 \
+             dcplayernames and 8 edited overrides."
+                .to_string(),
+            "Live name validation: all 43065 playernames entries decoded; 21814/21814 valid \
+             players resolved with zero errors. Spot checks: 20801 Cristiano Ronaldo \
+             (first C. Ronaldo, last dos Santos Aveiro, common Cristiano Ronaldo), 158023 Lionel \
+             Messi, 212831 Alisson (common Alisson), 215914 N'Golo Kanté, 231747 Kylian Mbappé."
+                .to_string(),
         ],
         missing_evidence: missing_evidence(),
         policy: "Do not fabricate offsets, pointer chains, names or record layouts. Read only the \
-                 verified range, skip invalid slots, require two identical snapshots, and stop at \
-                 the evidence gate when a check fails.",
+                 verified ranges, skip invalid slots, require two identical snapshots, decode \
+                 names with strict bounds and UTF-8 checks, and leave unresolved names null with \
+                 an explicit error. Stop at the evidence gate when a structural check fails.",
     }
 }
 
@@ -135,10 +154,11 @@ mod tests {
     }
 
     #[test]
-    fn report_claims_numeric_enumeration_only() {
+    fn report_claims_verified_names() {
         let report = capability_report();
         assert_eq!(report.status, "implemented_read_only");
-        assert!(report.summary.contains("Numeric player enumeration"));
-        assert!(report.summary.contains("never invented names"));
+        assert!(report.summary.contains("name resolution"));
+        assert!(report.summary.contains("21814/21814"));
+        assert!(report.summary.contains("no name is invented"));
     }
 }

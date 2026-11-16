@@ -212,9 +212,11 @@ are not in the game process; Live Editor loads them from
 pointer). WP4 then verified the storage counters: `+0x78` capacity, `+0x7C`
 slot count, `+0x7E` invalid markers, and validity by the high bit of the last
 record byte. The live capture was 22,098 slots / 27,000 capacity / 284 invalid
-/ 21,814 valid. `fc27le players --metadata FILE` emits the five verified
-numeric fields; names remain blocked. See `docs/research/db_metadata.md` and
-`docs/research/player_storage.md`.
+/ 21,814 valid. `fc27le players --metadata FILE` emits the verified numeric
+fields and player names. WP5 resolved 21,814/21,814 names through the
+`playernames` Huffman pool, `dcplayernames` and `editedplayernames` overrides.
+See `docs/research/db_metadata.md`, `docs/research/player_storage.md` and
+`docs/research/name_storage.md`.
 
 ## 7. Linux process-inspection permissions
 

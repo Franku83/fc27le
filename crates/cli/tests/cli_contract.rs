@@ -88,7 +88,19 @@ fn capabilities_lists_verified_player_reader() {
         player["note"]
             .as_str()
             .unwrap_or_default()
-            .contains("Names are not emitted")
+            .contains("editedplayernames")
+    );
+
+    let names = capabilities
+        .iter()
+        .find(|item| item["id"] == "player-name-resolution")
+        .expect("player-name-resolution capability");
+    assert_eq!(names["status"], "implemented_read_only");
+    assert!(
+        names["note"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("No name is guessed")
     );
 }
 

@@ -113,8 +113,9 @@ permission error, not escalation.
 | Database metadata parser | caller-supplied XML; 268/268 tables and field widths validated live |
 | Players descriptor | verified as `CZUM` (152 fields, 156-byte records); live count 22,098 / capacity 27,000 |
 | Build SHA-256 | opt-out with `--no-hash` |
-| `players` table | **supported read-only** on the verified build with a matching caller-supplied metadata XML; emits numeric fields only (no names) |
-| Player/team names | **not implemented** (compressed string pool unresolved) |
+| `players` table | **supported read-only** on the verified build with a matching caller-supplied metadata XML; emits numeric fields and names (`--no-names` for numeric only) |
+| Player names | **supported read-only**: `playernames` Huffman pool, `dcplayernames` IDs 46000+, `editedplayernames` overrides |
+| Team/league/competition names | **not implemented** (different tables/string fields) |
 | Memory writes, hooks, injection | **not implemented by design** |
 | Overlay UI | **not implemented by design** |
 | Windows backend | **stub**, not compiled/tested on Windows |
@@ -137,6 +138,8 @@ permission error, not escalation.
 | `db --metadata` focus fails | metadata/build mismatch or incomplete field set | do not enumerate; re-check the descriptor |
 | `players` returns `insufficient_evidence` | no metadata, wrong build, count/capacity mismatch, unstable snapshots, or invalid-marker/index disagreement | read the JSON `checks`; do not bypass the gate |
 | `players` emits no records | zero slots or all slots invalid | verify the game has loaded a squad/career database |
+| `players` names are null | a specific name ID is missing or its pool entry is corrupt | inspect `name_error` and `name_resolution`; do not substitute another player's name |
+| `players` exits 3 on the name pool | `playernames` is absent or its tree/offsets are invalid | use `--no-names` for numeric-only output or revalidate the build |
 
 ## 8. Anti-cheat / DRM / online boundary
 
@@ -164,8 +167,10 @@ Player enumeration additionally requires:
 2. `players` resolving to the verified descriptor with all 152 field widths;
 3. `slot_count <= capacity`, `invalid_rows == +0x7E`, and a matching playerid-index
    count;
-4. two byte-identical snapshots of the verified record range.
+4. two byte-identical snapshots of the verified record range;
+5. a valid `playernames` Huffman tree/pool and readable `dcplayernames` /
+   `editedplayernames` tables when names are requested.
 
-If any condition fails, the reader exits `insufficient_evidence` instead of
-emitting partial or guessed data. Names are not emitted until the compressed
-string pool is decoded and validated.
+If a structural condition fails, the reader exits `insufficient_evidence`
+instead of emitting partial or guessed data. A single missing name ID is
+reported per record as `null` with a `name_error`; no name is substituted.

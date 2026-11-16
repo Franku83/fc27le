@@ -237,6 +237,10 @@ pub struct PlayersArgs {
     #[arg(long, default_value_t = 20)]
     pub limit: usize,
 
+    /// Skip name resolution and emit numeric IDs only.
+    #[arg(long)]
+    pub no_names: bool,
+
     /// Safety cap for the database-service pattern scan, in MiB.
     #[arg(long, default_value_t = 160)]
     pub max_mib: u64,

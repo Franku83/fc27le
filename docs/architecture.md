@@ -25,7 +25,7 @@ crates/
   platform-linux/    fc27-platform-linux
   platform-windows/  fc27-platform-windows   (documented stub)
   fc27/              fc27-game (profile, discovery, anchors, build identity,
-                     db_service, db_metadata, player_store, capability/evidence gates)
+                     db_service, db_metadata, player_store, name_pool, capability/evidence gates)
   cli/               fc27-cli -> binary `fc27le`
 ```
 
@@ -130,7 +130,10 @@ players(pid, --metadata FILE)
   -> skip slots whose last byte has bit 7 set
   -> decode playerid/overallrating/potential/height/weight (LSB-first + bias)
   -> cross-check invalid rows and the playerid-index count
-  -> checks + numeric records; names are never invented
+  -> load playernames (Huffman), dcplayernames (IDs 46000+) and
+     editedplayernames overrides
+  -> resolve each record's firstnameid/lastnameid/commonnameid
+  -> checks + numeric records + names; missing names stay null
 ```
 
 ## 4. Linux memory-reader invariants
@@ -280,11 +283,18 @@ bits + 4 padding bits, non-zero data pointer).
 high bit of each record's last byte as the invalid predicate. On the tested
 build the `CZUM` capture was 22,098 slots / 27,000 capacity / 284 invalid /
 21,814 valid, with the playerid-index count also 21,814. The reader requires two
-byte-identical snapshots and emits only five verified numeric fields. Names
-remain blocked on the compressed string pool, so no name is fabricated. The
-metadata XML is never bundled.
+byte-identical snapshots and emits the verified numeric fields plus the three
+name IDs. The metadata XML is never bundled.
 
-See `docs/research/player_storage.md`.
+`fc27_game::name_pool` resolves those name IDs from the live database:
+`playernames` (`BGwe`) is a 12-byte row with a u32 pool offset; the pool at
+descriptor `+0x38` starts with a 138-node breadth-first Huffman tree, followed
+by length-prefixed MSB-first bitstreams (UTF-8 output). IDs 46000+ use
+`dcplayernames` inline strings, and `editedplayernames` overrides names by
+player ID. The full live pass resolved 21,814/21,814 players with zero errors.
+Missing names stay null with an explicit error; no name is fabricated.
+
+See `docs/research/player_storage.md` and `docs/research/name_storage.md`.
 
 ## 10. Error model and exit codes
 

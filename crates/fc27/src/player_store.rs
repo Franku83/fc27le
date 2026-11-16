@@ -39,8 +39,18 @@ use crate::db_service::{DbField, DbTable, read_table_fields};
 
 /// Metadata table name that was resolved to 4CC `CZUM` in WP3.
 pub const PLAYERS_TABLE: &str = "players";
-/// Fields emitted by the verified player reader.
-pub const PLAYER_FIELDS: [&str; 5] = ["playerid", "overallrating", "potential", "height", "weight"];
+/// Fields decoded by the verified player reader. The first three are name IDs
+/// resolved through the name tables; the rest are the numeric output.
+pub const PLAYER_FIELDS: [&str; 8] = [
+    "playerid",
+    "firstnameid",
+    "lastnameid",
+    "commonnameid",
+    "overallrating",
+    "potential",
+    "height",
+    "weight",
+];
 /// Safety cap for a single record; the verified players record is 156 bytes.
 pub const MAX_RECORD_SIZE: u32 = 4096;
 /// Safety cap for one full table snapshot (64 MiB).
@@ -88,10 +98,20 @@ pub struct PlayerTableLayout {
 pub struct PlayerRecord {
     pub record_index: u32,
     pub player_id: u32,
+    pub first_name_id: u16,
+    pub last_name_id: u16,
+    pub common_name_id: u16,
     pub overall_rating: u8,
     pub potential: u8,
     pub height_cm: u8,
     pub weight_kg: u8,
+    /// Filled by the name resolver; null when names are disabled or unresolved.
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub common_name: Option<String>,
+    pub display_name: Option<String>,
+    pub name_source: Option<String>,
+    pub name_error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -539,6 +559,9 @@ pub fn decode_record(row: &[u8], layout: &PlayerTableLayout) -> Result<PlayerRec
             "playerid {player_id} is outside the supported positive u32 range"
         )));
     }
+    let first_name_id = decode_field(row, field("firstnameid")?)?;
+    let last_name_id = decode_field(row, field("lastnameid")?)?;
+    let common_name_id = decode_field(row, field("commonnameid")?)?;
     let overall = decode_field(row, field("overallrating")?)?;
     let potential = decode_field(row, field("potential")?)?;
     let height = decode_field(row, field("height")?)?;
@@ -547,10 +570,19 @@ pub fn decode_record(row: &[u8], layout: &PlayerTableLayout) -> Result<PlayerRec
     Ok(PlayerRecord {
         record_index: 0, // filled by the caller
         player_id: player_id as u32,
+        first_name_id: to_u16("firstnameid", first_name_id)?,
+        last_name_id: to_u16("lastnameid", last_name_id)?,
+        common_name_id: to_u16("commonnameid", common_name_id)?,
         overall_rating: to_u8("overallrating", overall)?,
         potential: to_u8("potential", potential)?,
         height_cm: to_u8("height", height)?,
         weight_kg: to_u8("weight", weight)?,
+        first_name: None,
+        last_name: None,
+        common_name: None,
+        display_name: None,
+        name_source: None,
+        name_error: None,
     })
 }
 
@@ -604,6 +636,11 @@ fn to_u8(name: &str, value: i64) -> Result<u8> {
         .map_err(|_| Error::Unsupported(format!("field {name} value {value} does not fit in u8")))
 }
 
+fn to_u16(name: &str, value: i64) -> Result<u16> {
+    u16::try_from(value)
+        .map_err(|_| Error::Unsupported(format!("field {name} value {value} does not fit in u16")))
+}
+
 fn validate_counts(slot_count: u32, capacity: u32) -> Result<()> {
     if capacity == 0 {
         return Err(Error::InsufficientEvidence(format!(
@@ -654,7 +691,7 @@ mod tests {
             shortname: "TEST".to_string(),
             descriptor: 0x1000,
             data_pointer: 0x2000,
-            record_size: 6,
+            record_size: 12,
             slot_count: 3,
             capacity: 4,
             invalid_marker_count: 1,
@@ -669,9 +706,33 @@ mod tests {
                     high: 65535,
                 },
                 PlayerField {
+                    name: "firstnameid".to_string(),
+                    shortname: "fnm1".to_string(),
+                    bit_offset: 16,
+                    bit_width: 16,
+                    low: 0,
+                    high: 65535,
+                },
+                PlayerField {
+                    name: "lastnameid".to_string(),
+                    shortname: "lnm1".to_string(),
+                    bit_offset: 32,
+                    bit_width: 16,
+                    low: 0,
+                    high: 65535,
+                },
+                PlayerField {
+                    name: "commonnameid".to_string(),
+                    shortname: "cnm1".to_string(),
+                    bit_offset: 48,
+                    bit_width: 16,
+                    low: 0,
+                    high: 65535,
+                },
+                PlayerField {
                     name: "overallrating".to_string(),
                     shortname: "ovr1".to_string(),
-                    bit_offset: 16,
+                    bit_offset: 64,
                     bit_width: 7,
                     low: 1,
                     high: 99,
@@ -679,7 +740,7 @@ mod tests {
                 PlayerField {
                     name: "potential".to_string(),
                     shortname: "pot1".to_string(),
-                    bit_offset: 23,
+                    bit_offset: 71,
                     bit_width: 7,
                     low: 1,
                     high: 99,
@@ -687,7 +748,7 @@ mod tests {
                 PlayerField {
                     name: "height".to_string(),
                     shortname: "hgt1".to_string(),
-                    bit_offset: 30,
+                    bit_offset: 78,
                     bit_width: 7,
                     low: 130,
                     high: 220,
@@ -695,7 +756,7 @@ mod tests {
                 PlayerField {
                     name: "weight".to_string(),
                     shortname: "wgt1".to_string(),
-                    bit_offset: 37,
+                    bit_offset: 85,
                     bit_width: 7,
                     low: 30,
                     high: 150,
@@ -717,20 +778,27 @@ mod tests {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn encode_row(
         player_id: u64,
+        first_name_id: u64,
+        last_name_id: u64,
+        common_name_id: u64,
         overall: u64,
         potential: u64,
         height_cm: u64,
         weight_kg: u64,
         invalid: bool,
-    ) -> [u8; 6] {
-        let mut row = [0u8; 6];
+    ) -> [u8; 12] {
+        let mut row = [0u8; 12];
         write_bits(&mut row, 0, 16, player_id);
-        write_bits(&mut row, 16, 7, overall - 1);
-        write_bits(&mut row, 23, 7, potential - 1);
-        write_bits(&mut row, 30, 7, height_cm - 130);
-        write_bits(&mut row, 37, 7, weight_kg - 30);
+        write_bits(&mut row, 16, 16, first_name_id);
+        write_bits(&mut row, 32, 16, last_name_id);
+        write_bits(&mut row, 48, 16, common_name_id);
+        write_bits(&mut row, 64, 7, overall - 1);
+        write_bits(&mut row, 71, 7, potential - 1);
+        write_bits(&mut row, 78, 7, height_cm - 130);
+        write_bits(&mut row, 85, 7, weight_kg - 30);
         if invalid {
             let last = row.len() - 1;
             row[last] |= INVALID_MARKER;
@@ -757,9 +825,12 @@ mod tests {
     #[test]
     fn decodes_biased_fields() {
         let layout = test_layout();
-        let row = encode_row(20801, 84, 94, 187, 85, false);
+        let row = encode_row(20801, 6183, 42468, 8211, 84, 94, 187, 85, false);
         let record = decode_record(&row, &layout).unwrap();
         assert_eq!(record.player_id, 20801);
+        assert_eq!(record.first_name_id, 6183);
+        assert_eq!(record.last_name_id, 42468);
+        assert_eq!(record.common_name_id, 8211);
         assert_eq!(record.overall_rating, 84);
         assert_eq!(record.potential, 94);
         assert_eq!(record.height_cm, 187);
@@ -769,9 +840,9 @@ mod tests {
     #[test]
     fn skips_invalid_marker_and_counts_it() {
         let layout = test_layout();
-        let row0 = encode_row(1, 50, 60, 180, 75, false);
-        let row1 = encode_row(2, 51, 61, 181, 76, true);
-        let row2 = encode_row(3, 52, 62, 182, 77, false);
+        let row0 = encode_row(1, 10, 20, 0, 50, 60, 180, 75, false);
+        let row1 = encode_row(2, 11, 21, 0, 51, 61, 181, 76, true);
+        let row2 = encode_row(3, 12, 22, 0, 52, 62, 182, 77, false);
         let snapshot = [row0, row1, row2].concat();
         let scan = scan_snapshot(&snapshot, &layout, 10).unwrap();
         assert_eq!(scan.slots_scanned, 3);
@@ -787,9 +858,9 @@ mod tests {
     fn limit_truncates_records_but_still_scans_all_slots() {
         let layout = test_layout();
         let snapshot = [
-            encode_row(1, 50, 60, 180, 75, false),
-            encode_row(2, 51, 61, 181, 76, true),
-            encode_row(3, 52, 62, 182, 77, false),
+            encode_row(1, 10, 20, 0, 50, 60, 180, 75, false),
+            encode_row(2, 11, 21, 0, 51, 61, 181, 76, true),
+            encode_row(3, 12, 22, 0, 52, 62, 182, 77, false),
         ]
         .concat();
         let scan = scan_snapshot(&snapshot, &layout, 1).unwrap();
@@ -802,9 +873,9 @@ mod tests {
     fn rejects_invalid_marker_count_mismatch() {
         let layout = test_layout();
         let snapshot = [
-            encode_row(1, 50, 60, 180, 75, false),
-            encode_row(2, 51, 61, 181, 76, false),
-            encode_row(3, 52, 62, 182, 77, false),
+            encode_row(1, 10, 20, 0, 50, 60, 180, 75, false),
+            encode_row(2, 11, 21, 0, 51, 61, 181, 76, false),
+            encode_row(3, 12, 22, 0, 52, 62, 182, 77, false),
         ]
         .concat();
         let error = scan_snapshot(&snapshot, &layout, 10).unwrap_err();
@@ -814,8 +885,8 @@ mod tests {
     #[test]
     fn rejects_semantic_out_of_range() {
         let layout = test_layout();
-        let mut row = encode_row(1, 50, 60, 180, 75, false);
-        write_bits(&mut row, 30, 7, 100); // height 230, above the metadata maximum 220
+        let mut row = encode_row(1, 10, 20, 0, 50, 60, 180, 75, false);
+        write_bits(&mut row, 78, 7, 100); // height 230, above the metadata maximum 220
         let error = decode_record(&row, &layout).unwrap_err();
         assert!(matches!(error, Error::Unsupported(_)));
     }

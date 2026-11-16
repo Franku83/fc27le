@@ -12,8 +12,9 @@
 | Database service / table manager | **done (read-only)** | `fc27le db`, `docs/research/db_interface.md` |
 | Players table descriptor | **resolved/verified** | `players` = `CZUM`, 152 fields, `db --metadata` |
 | Player record layout | **verified** | 152/152 field widths; 22,098 slots; 27,000 capacity; 284 invalid markers |
-| Player enumeration | **implemented read-only** | `fc27le players --metadata`; 21,814 valid numeric rows |
-| Player/team names | **blocked** | compressed string pool unresolved |
+| Player enumeration | **implemented read-only** | `fc27le players --metadata`; 21,814 valid rows |
+| Player names | **implemented read-only** | 21,814/21,814 resolved; `playernames` Huffman + `dcplayernames` + edited overrides |
+| Team/league names | **blocked** | different tables/string fields |
 
 ### WP1 result (2026-11-16)
 
@@ -43,8 +44,9 @@ validated against the live table manager:
 The descriptor is resolved. The CLI exposes this as
 `fc27le db <pid> --metadata FILE`; the proprietary XML is not bundled.
 WP4 subsequently resolved the record count/data extent and enabled verified
-numeric enumeration. Names remain blocked on the compressed string pool. See
-`docs/research/player_storage.md`.
+numeric enumeration; WP5 resolved player names through the Huffman
+`playernames` pool, `dcplayernames` and `editedplayernames`. See
+`docs/research/player_storage.md` and `docs/research/name_storage.md`.
 
 The remaining work is *game-side structure discovery*, not process plumbing. This
 roadmap is ordered by shortest path and by how cheaply a wrong hypothesis can be
@@ -148,7 +150,7 @@ metadata XML is not bundled.
 1. **Authoritative CFS extraction** of `data/db/fifa_ng_db-meta.xml` (the
    `contentsb.toc` entry is not plaintext or standard zlib/gzip/LZ4/ZSTD; codec
    and key are unresolved).
-2. **Player/team names** (the string pool is Huffman-compressed; see WP5).
+2. **Team/league/competition names** (player names are resolved in WP5; other name tables remain open).
 
 The `CZUM` row count/data extent was resolved in WP4 (`+0x7C = 22,098`,
 `+0x78 = 27,000`, `+0x7E = 284`); `+0x50` is not a count.
@@ -194,12 +196,14 @@ naturally varying records or a save copy).
 
 **Goal:** resolve first/last/common names safely.
 
-**WP4 finding (2026-11-16):** `playernames` (`BGwe`) has 12-byte rows:
-`u32 string-pool reference` at `+0x00`, `u16 nameid` at `+0x04`,
-`u16 commentaryid` at `+0x06`, `u32 zero` at `+0x08`. The referenced pool is
-Huffman-compressed (`HufCompressed`, `DBOFIELDTYPE_STRING_COMPRESSED_*` in the
-DLL); no verified decoder exists yet. The player output therefore emits numeric
-IDs, never names.
+**Status (2026-11-16): DONE.** `playernames` (`BGwe`) has 12-byte rows:
+`u32 string-pool offset` at `+0x00`, `u16 nameid` at `+0x04`,
+`u16 commentaryid` at `+0x06`, `u32 zero` at `+0x08`. The pool at descriptor
+`+0x38` starts with a shared 138-node breadth-first Huffman tree, followed by
+length-prefixed MSB-first bitstreams decoded as UTF-8. IDs 46000+ use
+`dcplayernames` inline strings; `editedplayernames` applies per-player
+overrides. A live pass resolved **21,814/21,814** players with zero errors.
+See `docs/research/name_storage.md`.
 
 Tasks:
 
@@ -251,8 +255,8 @@ Requirements met:
 * includes provenance in JSON: descriptor, data pointer, counts, field layout,
   metadata digest, validation checks and both snapshot statuses.
 
-Not yet implemented: names/team IDs in the player output, team filters, and the
-career-state check. `playerid` is the stable identifier until WP5 lands.
+Not yet implemented: team/league names, team filters, and the career-state
+check. Player names are now resolved; `playerid` remains the stable key.
 
 **Definition of done:** on a disposable career save, the listing matches the
 in-game squad/player data for a spot-checked sample, and every check above has a
@@ -312,18 +316,16 @@ No fuzzing against the live process. No writes, no function calls, no hooks.
 
 ## 9. Recommended next action
 
-WP4 is complete. The next work item is **WP5: decode the compressed string
-pool** so player and team names can be emitted (or explicitly remain IDs).
+WP4 and WP5 are complete. The next work items are:
 
-1. **String pool:** identify the base and Huffman tables for the
-   `DBOFIELDTYPE_STRING_COMPRESSED_*` codec used by `playernames` (`BGwe`).
-   Validate decoded names against independent roster data before emitting them.
-2. **CFS metadata extraction:** recover `data/db/fifa_ng_db-meta.xml` from
+1. **WP6 career-state check:** locate a reliable career-mode signal and gate the
+   player command on it.
+2. **Team/league/competition names:** resolve the other name tables/string
+   fields, validating against independent competition data.
+3. **CFS metadata extraction:** recover `data/db/fifa_ng_db-meta.xml` from
    `contentsb.toc` (entry at `0x7E0B8A`, size `0x158CB2`) by identifying its
    codec/key. Do not bundle the XML.
-3. **Career-state check (WP6):** locate a reliable career-mode signal and gate
-   the player command on it.
 
-`players = CZUM`, the 22,098/27,000/284 storage model and the five numeric fields
-are already verified; do not re-guess them. If a dependency cannot be verified,
-stop and report it.
+`players = CZUM`, the 22,098/27,000/284 storage model, the numeric fields and
+the player-name pools are already verified; do not re-guess them. If a
+dependency cannot be verified, stop and report it.

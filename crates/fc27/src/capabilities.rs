@@ -84,21 +84,31 @@ pub const CAPABILITIES: &[Capability] = &[
     },
     Capability {
         id: "player-listing",
-        name: "Read verified numeric player records from process memory",
+        name: "Read verified player records and names from process memory",
         status: CapabilityStatus::ImplementedReadOnly,
-        evidence: "crates/fc27/src/player_store.rs; lua/.../t3db/table.lua + field.lua; \
-                   proprietary editor DLL internal function; live `fc27le players --metadata` validation",
+        evidence: "crates/fc27/src/player_store.rs + name_pool.rs; lua/.../t3db/table.lua + field.lua; \
+                   proprietary editor DLL internal function/internal function; live `fc27le players --metadata`",
         note: "Resolves players = CZUM, validates count/capacity/invalid markers, requires two \
-               identical snapshots, and emits playerid/overallrating/potential/height/weight. \
-               Names are not emitted because the string pool is still compressed/unresolved.",
+               identical snapshots, and emits numeric fields plus player names. Names come from \
+               playernames (Huffman), dcplayernames (IDs 46000+) and editedplayernames overrides; \
+               missing names stay null and are reported.",
+    },
+    Capability {
+        id: "player-name-resolution",
+        name: "Decode the compressed player-name pools",
+        status: CapabilityStatus::ImplementedReadOnly,
+        evidence: "crates/fc27/src/name_pool.rs; docs/research/name_storage.md; live 21814/21814 \
+                   player-name validation",
+        note: "Shared 138-node Huffman tree, length-prefixed MSB-first bitstreams, UTF-8 output, \
+               inline 46000+ names and per-player edited overrides. No name is guessed.",
     },
     Capability {
         id: "team-and-competition-names",
         name: "Resolve team, league and competition names",
         status: CapabilityStatus::BlockedOnEvidence,
         evidence: "lua/DOC.MD GetTeamName / GetCompetitionNameByID; FC27.exe schema strings",
-        note: "Numeric team/league relationships are resolved, but the name string pool uses a \
-               compressed string type whose decoder is not yet verified.",
+        note: "Player names are resolved, but team/league/competition names use different \
+               tables/string fields and are not yet exposed.",
     },
     Capability {
         id: "career-save-parsing",
@@ -171,6 +181,10 @@ mod tests {
     fn player_listing_is_read_only() {
         assert_eq!(
             capability("player-listing").unwrap().status,
+            CapabilityStatus::ImplementedReadOnly
+        );
+        assert_eq!(
+            capability("player-name-resolution").unwrap().status,
             CapabilityStatus::ImplementedReadOnly
         );
     }

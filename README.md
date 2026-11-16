@@ -21,21 +21,24 @@ anti-cheat/DRM, or modify game files, prefixes or saves.**
 | Verified pattern anchors | implemented (event dispatcher + DB service path verified live) |
 | Database service / table manager | **verified read-only** (`fc27le db`) |
 | Players table descriptor | **verified with caller-supplied metadata** (`players` = `CZUM`, 152 fields) |
-| Player enumeration | **implemented read-only** (`fc27le players --metadata`; numeric fields only) |
-| Player/team names | **blocked** on the compressed string pool |
+| Player enumeration | **implemented read-only** (`fc27le players --metadata`; numeric fields + names) |
+| Player names | **implemented read-only** (`playernames` Huffman, `dcplayernames`, edited overrides) |
+| Team/league names | **blocked** (different tables/string fields) |
 | Windows backend | documented stub, not compiled or tested on Windows |
 
 The player-data target chain is:
 
 ```text
 Process Discovery -> Memory Reader -> Structure Resolver -> Player Data -> CLI
-        done             done             done (numeric)        done       done
+        done             done             done (numeric+names)   done       done
 ```
 
-`fc27le players <pid> --metadata FILE --limit 20` enumerates verified numeric
-records. Names are not invented: the string pool is still compressed/unresolved,
-so the tool emits player IDs. Without `--metadata`, `fc27le players --explain`
-prints the remaining evidence gates.
+`fc27le players <pid> --metadata FILE --limit 20` enumerates verified records
+with real names. Names come from the game's `playernames` Huffman pool,
+`dcplayernames` (IDs 46000+), and `editedplayernames` overrides. A full live pass
+resolved 21,814 / 21,814 players with zero errors. Missing names stay null and
+are reported; no name is invented. Without `--metadata`, `fc27le players
+--explain` prints the remaining evidence gates.
 
 ## Quick start
 
@@ -88,7 +91,7 @@ FC 27 game: pid 19349 (FC27.exe, score 150)
 | `scan <pid> --module FC27.exe --pattern "48 89 ?? ..."` | Bounded PE-section pattern scan |
 | `probe <pid> [--no-hash] [--skip-anchors]` | Full reconnaissance report + anchor verification |
 | `db <pid> [--metadata FILE] [--focus-table players]` | Verify the DB path; resolve/validate metadata names against live descriptors |
-| `players <pid> --metadata FILE [--limit N]` | Verified read-only numeric player records (exit 3 if evidence fails) |
+| `players <pid> --metadata FILE [--limit N] [--no-names]` | Verified read-only player records with names (exit 3 if evidence fails) |
 | `players <pid> --explain` | Remaining evidence-gate report (exit 3) |
 | `capabilities` | Implemented / blocked / out-of-scope matrix |
 | `selftest` | Controlled end-to-end memory-reader test |
@@ -141,8 +144,13 @@ GE-Proton11-12:
   invalid markers**, **21,814 valid rows**, and a playerid-index count of
   **21,814**. The reader uses the u16 slot count at `+0x7C`, the last-byte
   invalid marker, and two identical snapshots. It emits playerid,
-  overallrating, potential, height and weight; names remain blocked on the
-  compressed string pool;
+  overallrating, potential, height and weight;
+* WP5 resolved player names: a **138-node shared Huffman tree** at the
+  `playernames` pool, length-prefixed MSB-first bitstreams, `dcplayernames`
+  for IDs 46000+, and 8 `editedplayernames` overrides. All **43,065**
+  `playernames` entries and **21,814 / 21,814** players resolved with zero
+  errors; known-player spot checks include Cristiano Ronaldo, Lionel Messi,
+  Alisson and N'Golo Kanté;
 * `proprietary editor DLL` and `activation module` were **not** loaded (the game was
   started directly, not through the Live Editor launcher);
 * `third-party-module.dll` **was** loaded, matching the third-party build build in the
@@ -159,6 +167,7 @@ Evidence snapshots live in [`docs/evidence/`](docs/evidence/).
 * [`docs/research/db_interface.md`](docs/research/db_interface.md) — WP1: LWSQL/ContentDB reverse engineering
 * [`docs/research/db_metadata.md`](docs/research/db_metadata.md) — WP3: metadata format, parser and `players` resolution
 * [`docs/research/player_storage.md`](docs/research/player_storage.md) — WP4: verified player storage, counts, validity and enumeration
+* [`docs/research/name_storage.md`](docs/research/name_storage.md) — WP5: player-name Huffman pool, `dcplayernames`, edited overrides
 * [`docs/research_roadmap.md`](docs/research_roadmap.md) — evidence gates and next investigation steps
 * [`docs/compatibility.md`](docs/compatibility.md) — supported environments, builds and limitations
 
@@ -173,7 +182,8 @@ behaviour. Findings used here are limited to:
 * the event-dispatcher byte pattern and its expected RVA;
 * the root-cause conclusion that `activation module` was absent and the Live
   Editor's wait for it was unbounded;
-* the Lua/SQL field names used to describe the player-data evidence gap.
+* the Lua reader's documented table/field semantics, used as a behavioral
+  cross-check for the independently implemented reader.
 
 ## License
 
