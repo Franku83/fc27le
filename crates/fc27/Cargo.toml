@@ -11,3 +11,4 @@ fc27-core = { workspace = true }
 fc27-process = { workspace = true }
 serde = { workspace = true }
 sha2 = { workspace = true }
+roxmltree = "0.21"

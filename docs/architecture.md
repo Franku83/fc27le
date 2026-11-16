@@ -25,7 +25,7 @@ crates/
   platform-linux/    fc27-platform-linux
   platform-windows/  fc27-platform-windows   (documented stub)
   fc27/              fc27-game (profile, discovery, anchors, build identity,
-                     db_service, capability/evidence gates)
+                     db_service, db_metadata, capability/evidence gates)
   cli/               fc27-cli -> binary `fc27le`
 ```
 
@@ -113,6 +113,10 @@ db(pid)
   -> key 0x0AE932D0 -> table-manager interface -> manager root
   -> traverse 2 database nodes and 273 table descriptors
   -> validate every pointer through the production bounded reader
+  -> optional --metadata FILE:
+       parse database/table/field names + 4CC codes
+       validate all table/field mappings against live descriptors
+       resolve the focus table (default players = CZUM)
   -> checks + table summary (no game function is called)
 ```
 
@@ -259,8 +263,14 @@ shortnames and a record layout header (`+0x44` record size in bytes, `+0x48`
 `record_size*8-1` bit mask, `+0x4c` flags, `+0x82` field count, `+0x84`
 16-byte field entries). The full-name -> 4CC mapping is loaded by Live Editor
 from `data/db/fifa_ng_db-meta.xml` through CFS; no verified name map was found
-in the game process. The player table therefore remains behind the evidence
-gate.
+in the game process.
+
+`fc27_game::db_metadata` parses a caller-supplied descriptor and validates it
+against the live manager. On the tested build, 268/268 metadata tables matched
+and **`players` resolved to `CZUM`** (152 fields, 156-byte records, 1244 field
+bits + 4 padding bits, non-zero data pointer). The descriptor is resolved, but
+record enumeration remains gated on the row count/data extent and on
+authoritative CFS metadata extraction. The XML is never bundled.
 
 ## 10. Error model and exit codes
 

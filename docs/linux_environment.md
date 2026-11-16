@@ -206,7 +206,10 @@ entries:
 Table descriptors use 4CC codes and a bit-packed layout. `+0x44` is the record
 size in bytes; `+0x48 == +0x44*8 - 1` for all 273 tables. Full table/field names
 are not in the game process; Live Editor loads them from
-`data/db/fifa_ng_db-meta.xml`. See `docs/research/db_interface.md`.
+`data/db/fifa_ng_db-meta.xml`. With a caller-supplied FC 27 metadata XML,
+`fc27le db <pid> --metadata FILE` validated 268/268 tables and resolved
+`players` to `CZUM` (152 fields, 156-byte records, 4 padding bits, non-zero data
+pointer). See `docs/research/db_metadata.md`.
 
 ## 7. Linux process-inspection permissions
 

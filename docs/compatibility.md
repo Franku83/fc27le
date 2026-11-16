@@ -110,8 +110,10 @@ permission error, not escalation.
 | Bounded reads | 1 MiB per read; holes rejected |
 | Pattern scans | PE sections only; per-anchor caps (64 MiB event, 160 MiB DB); configurable |
 | Database service path | verified read-only (`fc27le db`): 2 databases, 273 table descriptors |
+| Database metadata parser | caller-supplied XML; 268/268 tables and field widths validated live |
+| Players descriptor | verified as `CZUM` (152 fields, 156-byte records); enumeration gated on row count |
 | Build SHA-256 | opt-out with `--no-hash` |
-| Player listing | **not compatible / not implemented** (evidence gate) |
+| `players` table | **not compatible / not implemented** (descriptor resolved, enumeration gated) |
 | Memory writes, hooks, injection | **not implemented by design** |
 | Overlay UI | **not implemented by design** |
 | Windows backend | **stub**, not compiled/tested on Windows |
@@ -129,8 +131,9 @@ permission error, not escalation.
 | `pattern missing` | wrong build or wrong pattern | re-verify against the file; update the anchor |
 | `mismatch` | pattern exists at another RVA | treat the build as unsupported until re-researched |
 | `scan truncated` | scan cap reached before expected RVA | raise `--max-mib` deliberately |
-| `db` pattern missing | wrong build or wrong pattern | do not use the DB path; re-research |
+| `probe` pattern missing | wrong build or wrong pattern | do not use the DB path; re-research |
 | `db` registry key missing | build does not match the verified service registry | treat as unsupported build |
+| `db --metadata` focus fails | metadata/build mismatch or incomplete field set | do not enumerate; re-check the descriptor |
 | `insufficient_evidence` (3) | player resolver gated | read `players --explain` |
 
 ## 8. Anti-cheat / DRM / online boundary

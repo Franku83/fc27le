@@ -10,7 +10,8 @@
 | Build identity | **done** | SHA-256 match in `docs/evidence/probe.json` |
 | Verified anchor scan | **done** | event dispatcher at `0x141CD3B5C`; DB service at `0x147242D5E` |
 | Database service / table manager | **done (read-only)** | `fc27le db`, `docs/research/db_interface.md` |
-| Structure resolver for players | **not started** | no verified player-table name map or record layout |
+| Players table descriptor | **resolved/verified** | `players` = `CZUM`, 152 fields, `db --metadata` |
+| Player record layout | **field widths verified** | 152/152 field widths; row count/extent pending |
 | Player listing | **gated** | `fc27le players --explain` exits 3 |
 
 ### WP1 result (2026-11-16)
@@ -22,11 +23,26 @@ object, vtable thunk, service registry key `0x0AE932D0`, manager root and table
 headers; all pointers are read through the bounded reader and twelve semantic
 checks pass live.
 
-The remaining player-listing blocker is now precise: the full table/field names
-live in `data/db/fifa_ng_db-meta.xml` (CFS hash `1160535545681411833`), which
-Live Editor loads and parses into its own name→4CC maps. The game process keeps
-the 4CC table manager but not that external name mapping. No player offsets are
+The remaining player-listing dependency was narrowed to the metadata name map.
+WP3 has now resolved that map for the tested build using a caller-supplied
+descriptor; the game's own XML still needs CFS extraction. No player offsets are
 claimed.
+
+### WP3 result (2026-11-16)
+
+A caller-supplied FC 27 metadata descriptor was parsed by the new Rust parser and
+validated against the live table manager:
+
+* **268 / 268** metadata tables matched live 4CC descriptors;
+* **268 / 268** field-width sets matched;
+* **`players` = `CZUM`**: 152 fields, 156-byte records, mask 1247, 1244 field
+  bits + 4 padding bits, non-zero live data pointer;
+* **`teamplayerlinks` = `RrqT`**: 16 fields, 16-byte records.
+
+The descriptor is resolved. The CLI exposes this as
+`fc27le db <pid> --metadata FILE`; the proprietary XML is not bundled.
+Enumeration remains gated on the row count/data extent and on authoritative CFS
+extraction. See `docs/research/db_metadata.md`.
 
 The remaining work is *game-side structure discovery*, not process plumbing. This
 roadmap is ordered by shortest path and by how cheaply a wrong hypothesis can be
@@ -70,6 +86,8 @@ These are strings and metadata, not offsets:
 | Service registry key `0x0AE932D0` | game service object | resolves to a manager with 2 databases and 273 table descriptors |
 | Table header invariant | table `+0x44` / `+0x48` | `record_size*8-1` bit mask; confirmed for all 273 tables |
 | `data/db/fifa_ng_db-meta.xml` | CFS hash `1160535545681411833` | full-name → 4CC map loaded by Live Editor (missing link) |
+| `players` 4CC | metadata + live validation | **`CZUM`**, 152 fields, 156-byte records, mask 1247 |
+| `teamplayerlinks` 4CC | metadata + live validation | **`RrqT`**, 16 fields, 16-byte records |
 | `GetTeamIdFromPlayerId` / `GetPlayerName` | DLL `0x3DEE00` / `0x3DDC70` | career-object accessors (`club_team_id`), **not** the DB table manager; do not use as table evidence |
 
 A field name in a string block does **not** give a field offset. SQL column order
@@ -111,58 +129,40 @@ validated by the bounded reader.
 **Next acceptance step:** re-run `fc27le db` on a fresh game launch and on any
 other distribution; a failure must be treated as an unsupported build.
 
-### WP3 — Recover the name→4CC map and locate the players descriptor
+### WP3 — Recover the name→4CC map and locate the players descriptor — **DESCRIPTOR RESOLVED**
 
-**Goal:** find the table object for `players`, not just the code that can query it.
+**Result:** with a caller-supplied FC 27 metadata XML, `players` resolves to
+**`CZUM`**. The live descriptor has 152 fields, 156-byte records, mask 1247,
+1244 field bits plus 4 padding bits and a non-zero data pointer. All 152 field
+widths match the metadata. `teamplayerlinks` resolves to `RrqT` (16 fields).
+Across the full descriptor, 268/268 metadata tables matched live descriptors and
+268/268 field-width sets matched.
 
-The DB interface is already found. The missing key is the full-name → 4CC map
-that Live Editor loads from `data/db/fifa_ng_db-meta.xml` (CFS hash
-`1160535545681411833`). The game process stores 4CC table/field codes, not the
-full-name map.
+`fc27le db <pid> --metadata FILE` implements the parser and validation. The
+metadata XML is not bundled.
 
-Tasks:
+**Still open:**
 
-1. Implement or reuse a read-only CFS reader to extract
-   `data/db/fifa_ng_db-meta.xml` (hash above) from the game archives. Never
-   write to the archives.
-2. Parse the XML schema already visible in `internal function`:
-   `<database><table name="..." shortname="..." savegroups="...">`, a `<fields>`
-   block, and `<field .../>` entries. Map `players` to its `shortname` 4CC and
-   the player field names to their 4CCs.
-3. Use `fc27le db` to locate the table descriptor whose `+0x40` matches that
-   4CC. Record `+0x30` (data pointer), `+0x44` (record size bytes), `+0x48`
-   (`record_size*8-1` bit mask), `+0x4c` (flags), `+0x82` (field count) and the
-   16-byte field entries at `+0x84` (bit offset/type, size/4CC).
-4. Cross-check the record count against an independent expectation (career save
-   player count, or a known league/team filter) without modifying the save.
-5. Candidate observation for later validation: 14 tables share an identical
-   233-field, 236-byte, flag-2 schema (`luAI`, `eqqo`, `uxUO`, ...). This is a
-   **candidate family, not confirmed players**; only the XML mapping can settle
-   it.
+1. **Authoritative CFS extraction** of `data/db/fifa_ng_db-meta.xml` (the
+   `contentsb.toc` entry is not plaintext or standard zlib/gzip/LZ4/ZSTD; codec
+   and key are unresolved).
+2. **Players row count/data extent** (`+0x50` is zero; enumeration bounds are
+   not verified).
 
-**Acceptance checks:**
+**Acceptance achieved:** descriptor resolved by metadata, 4CC validated against
+the live manager, record size/field count/data pointer checked, no guessed
+names or offsets.
 
-* the XML is obtained read-only and its digest/record is documented;
-* `players` maps to exactly one 4CC (or a documented shard set);
-* descriptor address is in a mapped, readable region;
-* record size/bit mask and field count are internally consistent
-  (`+0x48 == +0x44*8 - 1` holds for all 273 tables today);
-* the table can be enumerated twice with the same result in one session;
-* no writes occur.
-
-**Stop rule:** if the XML or a stable name mapping cannot be recovered, stop and
-document the missing link. Do not brute-force every heap pointer or guess a 4CC
-from a hash.
+**Stop rule:** do not enumerate records until the row count/data extent is
+verified. Do not bundle or redistribute the proprietary XML.
 
 ### WP4 — Derive and validate the record layout
 
-**Goal:** map a small, useful field set:
-
-```text
-playerid, firstnameid, lastnameid, commonnameid,
-overallrating, potential, teamid (via teamplayerlinks),
-preferredposition1, birthdate
-```
+**Status:** the `players` descriptor (`CZUM`) is resolved and the bit layout is
+verified: 152 fields, 1244 depth bits, 156-byte rows, 4 padding bits, with every
+metadata field width matching its live field entry. The remaining WP4 task is
+the **record count and data extent**, then field-value validation on sampled
+rows.
 
 Tasks:
 
@@ -172,15 +172,17 @@ Tasks:
    all 273 tables).
 2. Implement the bit-reader semantics observed in `internal function` (types 0, 3,
    4 and `0xD`), with explicit bounds checks for every field.
-3. Use diffs between known records: two players with different overall/potential
+3. Establish the `CZUM` row count/data extent, then iterate only within that
+   verified bound.
+4. Use diffs between known records: two players with different overall/potential
    and known ids. A field is accepted only if it changes consistently.
-4. Validate types and ranges:
+5. Validate types and ranges:
    * `playerid` unique and positive;
    * `overallrating` and `potential` within the game's rating range and
      `potential >= overall` for most players;
    * `birthdate` decodes to a plausible date;
    * ids resolve through the same table/ID map used by the game.
-5. Resolve names only through the verified string model (WP5).
+6. Resolve names only through the verified string model (WP5).
 
 **Deliverable:** a field table with offset, width, signedness, confidence and
 validation evidence. No field is added without a cross-check.
@@ -230,12 +232,15 @@ fc27le players <pid> [--limit N] [--team ID] [--json]
 
 Requirements:
 
+* require a caller-supplied metadata XML (or an authoritative CFS extraction);
+* resolve `players` to `CZUM` and validate 152/152 field widths before output;
+* establish and use a verified `CZUM` row count/data extent;
 * iterate at most a configured cap (for example 100,000 records);
-* validate every pointer and field before output;
+* validate every field before output;
 * never write; never call a game function; never install a hook;
 * on any structural inconsistency, fail closed with `InsufficientEvidence`;
 * include provenance in JSON: build hash, anchor ids, descriptor address, table
-  count, validation summary.
+  count, metadata digest, validation summary.
 
 **Definition of done:** on a disposable career save, the listing matches the
 in-game squad/player data for a spot-checked sample, and every check above has a
@@ -294,9 +299,13 @@ No fuzzing against the live process. No writes, no function calls, no hooks.
 
 ## 9. Recommended next action
 
-Proceed with **WP3**, step 1: implement or reuse a read-only CFS extractor and
-recover `data/db/fifa_ng_db-meta.xml` (hash `1160535545681411833`). It is static,
-cheap, reversible and produces the name→4CC map needed for every later step.
-Parse it, map `players` to its 4CC, then resolve the descriptor with `fc27le db`.
-If the XML cannot be recovered or parsed, stop and report that finding rather
-than guessing a 4CC or exploring the heap.
+Proceed with the two remaining WP3/WP4 dependencies:
+
+1. **CFS extraction:** recover `data/db/fifa_ng_db-meta.xml` from
+   `contentsb.toc` (entry at `0x7E0B8A`, size `0x158CB2`) by identifying its
+   codec/key. Do not bundle the XML.
+2. **Row extent:** locate the `CZUM` row count/data extent, validate record
+   boundaries, and only then enable bounded enumeration.
+
+`players = CZUM` is already resolved and validated; do not re-guess 4CCs or
+field widths. If either dependency cannot be verified, stop and report it.

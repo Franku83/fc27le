@@ -20,7 +20,8 @@ anti-cheat/DRM, or modify game files, prefixes or saves.**
 | Build identity (size, SHA-256, PE metadata) | implemented |
 | Verified pattern anchors | implemented (event dispatcher + DB service path verified live) |
 | Database service / table manager | **verified read-only** (`fc27le db`) |
-| Player listing | **blocked on evidence** (exit code 3, no invented offsets) |
+| Players table descriptor | **verified with caller-supplied metadata** (`players` = `CZUM`, 152 fields) |
+| Player enumeration | **gated** on row count/data extent and CFS metadata extraction |
 | Windows backend | documented stub, not compiled or tested on Windows |
 
 The player-data target chain is:
@@ -52,6 +53,9 @@ cargo build --release
 # Verify the database service path and list table descriptors
 ./target/release/fc27le db <pid>
 
+# Resolve table/field names with a caller-supplied metadata XML
+./target/release/fc27le db <pid> --metadata /path/to/fifa_ng_db-meta.xml
+
 # Machine-readable output
 ./target/release/fc27le probe <pid> --json
 ```
@@ -80,8 +84,8 @@ FC 27 game: pid 19349 (FC27.exe, score 150)
 | `read <pid> --module FC27.exe --offset 0x1CD3B5C --length 48` | Module-relative read |
 | `scan <pid> --module FC27.exe --pattern "48 89 ?? ..."` | Bounded PE-section pattern scan |
 | `probe <pid> [--no-hash] [--skip-anchors]` | Full reconnaissance report + anchor verification |
-| `db <pid>` | Verify the DB service path and enumerate the game's table manager |
-| `players <pid> --explain` | Evidence-gated player-listing report (exit 3) |
+| `db <pid> [--metadata FILE] [--focus-table players]` | Verify the DB path; resolve/validate metadata names against live descriptors |
+| `players <pid> --explain` | Evidence-gated player-enumeration report (exit 3) |
 | `capabilities` | Implemented / blocked / out-of-scope matrix |
 | `selftest` | Controlled end-to-end memory-reader test |
 
@@ -125,6 +129,10 @@ GE-Proton11-12:
   `0x7242D5E` / VA `0x147242D5E`; the service registry key `0x0AE932D0` resolves
   to the game table manager with two databases (`g_db`, `a_mx`) and 273 table
   descriptors (see `fc27le db`);
+* with a caller-supplied FC 27 metadata XML, all **268 metadata tables** matched
+  live descriptors and all 268 field-width sets matched; `players` resolves to
+  **`CZUM`** with 152 fields, 156-byte records, a 1247-bit mask and a live data
+  pointer; `teamplayerlinks` resolves to **`RrqT`** (16 fields);
 * `proprietary editor DLL` and `activation module` were **not** loaded (the game was
   started directly, not through the Live Editor launcher);
 * `third-party-module.dll` **was** loaded, matching the third-party build build in the
@@ -139,6 +147,7 @@ Evidence snapshots live in [`docs/evidence/`](docs/evidence/).
 * [`docs/linux_environment.md`](docs/linux_environment.md) — observed host, Wine/Proton, memory layout, permissions
 * [`docs/fc27_reconnaissance.md`](docs/fc27_reconnaissance.md) — FC 27 process-discovery and anchor report
 * [`docs/research/db_interface.md`](docs/research/db_interface.md) — WP1: LWSQL/ContentDB reverse engineering
+* [`docs/research/db_metadata.md`](docs/research/db_metadata.md) — WP3: metadata format, parser and `players` resolution
 * [`docs/research_roadmap.md`](docs/research_roadmap.md) — evidence gates and next investigation steps
 * [`docs/compatibility.md`](docs/compatibility.md) — supported environments, builds and limitations
 

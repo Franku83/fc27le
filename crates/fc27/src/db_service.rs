@@ -61,10 +61,20 @@ pub struct DbTable {
     pub shortname_hex: u32,
     pub address: u64,
     pub field_count_byte: u8,
+    pub data_pointer: u64,
     pub header_44: u32,
     pub header_48: u32,
     pub header_4c: u32,
     pub header_50: u32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DbField {
+    pub bit_offset: u32,
+    pub field_type: u32,
+    pub bit_width: u32,
+    pub shortname: String,
+    pub shortname_hex: u32,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -360,6 +370,7 @@ fn traverse_table_manager(
             let raw = handle.read(off(table, 0x40)?, 4)?;
             let shortname_hex = u32::from_le_bytes([raw[0], raw[1], raw[2], raw[3]]);
             let field_count_byte = handle.read(off(table, 0x82)?, 1)?[0];
+            let data_pointer = handle.read_u64(off(table, 0x30)?)?;
             let header_44 = handle.read_u32(off(table, 0x44)?)?;
             let header_48 = handle.read_u32(off(table, 0x48)?)?;
             let header_4c = handle.read_u32(off(table, 0x4c)?)?;
@@ -371,6 +382,7 @@ fn traverse_table_manager(
                 shortname_hex,
                 address: table,
                 field_count_byte,
+                data_pointer,
                 header_44,
                 header_48,
                 header_4c,
@@ -403,6 +415,28 @@ fn fourcc(bytes: &[u8]) -> String {
             }
         })
         .collect()
+}
+
+/// Read the 16-byte field entries of one live table descriptor.
+///
+/// The number of entries comes from `field_count_byte` at `+0x82`; entries
+/// start at `+0x84`. The caller must have selected a verified table.
+pub fn read_table_fields(handle: &dyn ProcessHandle, table: &DbTable) -> Result<Vec<DbField>> {
+    let mut fields = Vec::with_capacity(usize::from(table.field_count_byte));
+    for index in 0..usize::from(table.field_count_byte) {
+        let entry = off(table.address, 0x84 + (index as u64) * 0x10)?;
+        let first = handle.read_u64(entry)?;
+        let second = handle.read_u64(off(entry, 8)?)?;
+        let code = second as u32;
+        fields.push(DbField {
+            bit_offset: (first >> 32) as u32,
+            field_type: first as u32,
+            bit_width: (second >> 32) as u32,
+            shortname: fourcc(&code.to_le_bytes()),
+            shortname_hex: code,
+        });
+    }
+    Ok(fields)
 }
 
 #[cfg(test)]

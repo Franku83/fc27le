@@ -1,5 +1,9 @@
+use std::path::Path;
+
 use fc27_core::{Result, units::format_bytes};
 use fc27_game::anchors::ScanOptions;
+use fc27_game::build_identity::sha256_file;
+use fc27_game::db_metadata::{MetadataValidation, parse_metadata_xml, validate};
 use fc27_game::db_service::inspect;
 use fc27_process::ProcessHandle;
 use serde::Serialize;
@@ -9,10 +13,19 @@ use crate::commands::{open_process, require_module};
 use crate::output::print_json;
 
 #[derive(Debug, Serialize)]
+struct MetadataOutput {
+    path: String,
+    size_bytes: u64,
+    sha256: String,
+    validation: MetadataValidation,
+}
+
+#[derive(Debug, Serialize)]
 struct DbOutput {
     pid: fc27_process::Pid,
     module: String,
     report: fc27_game::db_service::DbServiceReport,
+    metadata: Option<MetadataOutput>,
 }
 
 pub fn run(args: &DbArgs, json: bool) -> Result<u8> {
@@ -27,19 +40,41 @@ pub fn run(args: &DbArgs, json: bool) -> Result<u8> {
     };
     let report = inspect(&process, &module, options)?;
 
+    let metadata = if let Some(path) = &args.metadata {
+        let path_object = Path::new(path);
+        let metadata_size = std::fs::metadata(path_object)
+            .map_err(|error| fc27_core::Error::io_context(format!("stat {path}"), error))?
+            .len();
+        if metadata_size > 16 * 1024 * 1024 {
+            return Err(fc27_core::Error::InvalidInput(format!(
+                "metadata file {path} is larger than the 16 MiB safety cap"
+            )));
+        }
+        let xml = std::fs::read_to_string(path_object)
+            .map_err(|error| fc27_core::Error::io_context(format!("read {path}"), error))?;
+        let parsed = parse_metadata_xml(&xml)?;
+        let validation = validate(&parsed, &report.tables, &process, &args.focus_table)?;
+        let sha256 = sha256_file(path_object)?;
+        Some(MetadataOutput {
+            path: path.clone(),
+            size_bytes: metadata_size,
+            sha256,
+            validation,
+        })
+    } else {
+        None
+    };
+
     let output = DbOutput {
         pid: args.pid,
         module: module.name.clone(),
         report,
+        metadata,
     };
 
     if json {
         print_json(&output)?;
-        return Ok(if output.report.all_checks_passed {
-            0
-        } else {
-            1
-        });
+        return Ok(exit_code(&output));
     }
 
     let report = &output.report;
@@ -140,11 +175,73 @@ pub fn run(args: &DbArgs, json: bool) -> Result<u8> {
         );
     }
 
-    println!("\nnotes:");
-    for note in &report.notes {
-        println!("  - {note}");
+    if let Some(metadata) = &output.metadata {
+        let validation = &metadata.validation;
+        println!("\nmetadata:        {}", metadata.path);
+        println!(
+            "  size/sha256:   {} / {}",
+            metadata.size_bytes, metadata.sha256
+        );
+        println!(
+            "  coverage:      {} table(s); {}/{} matched, {}/{} verified",
+            validation.metadata_table_count,
+            validation.matched_tables,
+            validation.metadata_table_count,
+            validation.verified_tables,
+            validation.metadata_table_count
+        );
+        if let Some(focus) = &validation.focus {
+            println!(
+                "  focus {}:     {} at {}",
+                focus.name,
+                focus.shortname,
+                focus
+                    .live_address
+                    .map(|address| format!("{address:#x}"))
+                    .unwrap_or_else(|| "missing".to_string())
+            );
+            println!(
+                "    fields:      {} metadata / {} live; widths {}/{}; row_size {} bytes; \
+                 depth {} bits; padding {} bits",
+                focus.metadata_field_count,
+                focus.live_field_count.unwrap_or(0),
+                focus.width_matches,
+                focus.metadata_field_count,
+                focus.row_size.unwrap_or(0),
+                focus.sum_depth,
+                focus.padding_bits.unwrap_or(-1)
+            );
+            println!(
+                "    data:        {:#x}; status: {}",
+                focus.data_pointer.unwrap_or(0),
+                if focus.verified { "VERIFIED" } else { "FAILED" }
+            );
+        } else {
+            println!(
+                "  focus {}:     not present in metadata",
+                validation.focus_table
+            );
+        }
+        for note in &validation.notes {
+            println!("  note:          {note}");
+        }
+    } else {
+        println!(
+            "\nplayers table: NOT RESOLVED (pass --metadata FILE to resolve names to 4CC codes)"
+        );
     }
-    println!("\nplayers table: NOT RESOLVED (full-name mapping is external XML metadata)");
 
-    Ok(if report.all_checks_passed { 0 } else { 1 })
+    Ok(exit_code(&output))
+}
+
+fn exit_code(output: &DbOutput) -> u8 {
+    if !output.report.all_checks_passed {
+        return 1;
+    }
+    if let Some(metadata) = &output.metadata {
+        if !metadata.validation.focus_verified {
+            return 1;
+        }
+    }
+    0
 }

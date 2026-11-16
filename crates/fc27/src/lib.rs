@@ -14,6 +14,7 @@
 pub mod anchors;
 pub mod build_identity;
 pub mod capabilities;
+pub mod db_metadata;
 pub mod db_service;
 pub mod discovery;
 pub mod players;

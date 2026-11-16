@@ -208,6 +208,14 @@ pub struct DbArgs {
     #[arg(long, default_value_t = 160)]
     pub max_mib: u64,
 
+    /// Caller-supplied database metadata XML to resolve names to 4CC codes.
+    #[arg(long, value_name = "FILE")]
+    pub metadata: Option<String>,
+
+    /// Metadata table to resolve in detail (default players).
+    #[arg(long, default_value = "players")]
+    pub focus_table: String,
+
     /// Maximum table descriptors to print in human output.
     #[arg(long, default_value_t = 40)]
     pub limit: usize,

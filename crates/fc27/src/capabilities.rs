@@ -75,12 +75,20 @@ pub const CAPABILITIES: &[Capability] = &[
         note: "Reaches the 273-table manager and two databases by pointer traversal; no game function is called.",
     },
     Capability {
+        id: "db-metadata-parser",
+        name: "Parse EA FC database metadata XML (caller-supplied)",
+        status: CapabilityStatus::ImplementedReadOnly,
+        evidence: "crates/fc27/src/db_metadata.rs; live `fc27le db --metadata` validation",
+        note: "Parses table/field names and 4CC shortnames, validates against live descriptors. \
+               The proprietary XML is not bundled.",
+    },
+    Capability {
         id: "player-listing",
         name: "Read the player table from process memory",
         status: CapabilityStatus::BlockedOnEvidence,
-        evidence: "lua/scripts/list_players.lua; lua/DOC.MD; FC27.exe SQL/schema strings; `fc27le db`",
-        note: "DB interface and table manager are verified, but the full-name -> 4CC map comes from \
-               data/db/fifa_ng_db-meta.xml and the record layout is not yet derived.",
+        evidence: "lua/scripts/list_players.lua; db_metadata validation; `fc27le db --metadata`",
+        note: "The players descriptor is verified as CZUM (152 fields, 156-byte records), but the \
+               row count/data extent and authoritative CFS metadata extraction are unresolved.",
     },
     Capability {
         id: "team-and-competition-names",
