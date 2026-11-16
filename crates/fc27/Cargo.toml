@@ -1,0 +1,13 @@
+[package]
+name = "fc27-game"
+description = "FC 27-specific discovery, build identity, verified anchors and evidence gates"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+fc27-core = { workspace = true }
+fc27-process = { workspace = true }
+serde = { workspace = true }
+sha2 = { workspace = true }

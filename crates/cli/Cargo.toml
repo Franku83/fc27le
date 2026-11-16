@@ -1,0 +1,22 @@
+[package]
+name = "fc27-cli"
+description = "fc27le: read-only FC 27 process inspection CLI"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "fc27le"
+path = "src/main.rs"
+
+[dependencies]
+fc27-core = { workspace = true }
+fc27-process = { workspace = true }
+fc27-platform-linux = { workspace = true }
+fc27-game = { workspace = true }
+clap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

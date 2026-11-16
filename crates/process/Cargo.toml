@@ -1,0 +1,11 @@
+[package]
+name = "fc27-process"
+description = "Platform-neutral process, memory-mapping, module and PE types"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+fc27-core = { workspace = true }
+serde = { workspace = true }

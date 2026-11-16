@@ -1,0 +1,12 @@
+[package]
+name = "fc27-platform-linux"
+description = "Native Linux /proc process-inspection backend (read-only)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+fc27-core = { workspace = true }
+fc27-process = { workspace = true }
+serde = { workspace = true }
