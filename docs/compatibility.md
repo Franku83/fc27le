@@ -117,9 +117,59 @@ permission error, not escalation.
 | Player names | **supported read-only**: `playernames` Huffman pool, `dcplayernames` IDs 46000+, `editedplayernames` overrides |
 | Team/league/competition names | **not implemented** (different tables/string fields) |
 | Memory writes, hooks, injection | **not implemented by design** |
-| Overlay UI | **not implemented by design** |
+| GUI player browser | **implemented**: `fc27le-gui`, eframe/egui 0.32, verified live against PID 5714 |
+| GUI player search | name and numeric player ID; verified |
+| GUI sorting | name, ID, OVR, POT, height, weight; verified |
+| GUI detail panel | name, playerid, OVR/POT, height/weight, slot, name IDs/source; verified |
+| GUI reconnect/refresh | re-runs discovery and the full verified loader; visible errors |
+| Lua 5.4 runtime | **implemented read-only subset** via `mlua 0.11` (`lua54`, `vendored`) |
+| Lua `LE.db` tables | 268 tables in the tested metadata/live intersection; `players` verified live |
+| Lua record iteration | verified over 21,814 live players; `0` terminator |
+| Lua writes/events/managers | **explicit compatibility errors**, never simulated |
+| In-game presentation | external floating window; F9 hides while focused; socket toggle restores |
+| True always-on-top overlay | **not claimed**; X11 always-on-top made the window click-through under tested KWin/Wayland |
 | Windows backend | **stub**, not compiled/tested on Windows |
-| Lua API | **not implemented** |
+
+### 6.1 Application and window behavior
+
+The GUI is a normal native window (eframe/egui). It auto-discovers `FC27.exe`,
+validates a caller-supplied metadata XML against the live table manager, loads
+players and names on a background thread, and keeps the render thread free of
+blocking database or Lua work.
+
+Tested on KWin 6.8.3 / Wayland with the application running through XWayland:
+
+* normal floating window: keyboard and real mouse input work while FC27LE is the
+  active, raised window;
+* F9 while the GUI has focus: window hides (`WM_STATE` removed / unmapped);
+* `fc27le-gui --toggle` over the Unix socket: window is mapped again and KWin
+  reports it as active;
+* exclusive-fullscreen FC 27 can still keep input and stacking even when KWin
+  reports FC27LE active. The KWin helper is best-effort window activation, not an
+  input-capture bypass;
+* X11 `_NET_WM_STATE_ABOVE` / `STAYS_ON_TOP`: **not reliable**. In the tested
+  session the compositor kept the state but mouse input stayed with the game
+  (click-through). The default is therefore `always_on_top = false`.
+* A true overlay above exclusive-fullscreen FC 27 is **not** provided. Use
+  borderless/windowed game mode or a second monitor for reliable interaction.
+  The optional KWin helper only manages the FC27LE window; it does not hook,
+  capture or modify the game.
+
+### 6.2 Lua compatibility
+
+The runtime is a read-only subset of the documented Live Editor Lua API v2.
+`LE`, `LE.db`, `GetTable`, `GetTableByShortname`, `GetTableNames`, record
+iteration, field reads, `LOGGER`, `MessageBox` and `print` are implemented and
+tested. Record handles are numeric `(generation, table, slot)` tokens, not
+process pointers; `LE.db:Refresh` invalidates them.
+
+Writes, event registration, `MEMORY`, `HTTP`, `REQUEST`, career managers and
+unverified helper functions exist only as explicit error stubs. The full
+per-entry matrix, signatures, return types, evidence and limitations are in
+[`lua_compatibility.md`](lua_compatibility.md). Automated tests use synthetic
+fixtures; live read-only tests were run against the build below. The live GUI
+Stop button cancelled an infinite loop (`while true do end`) with
+`FC27LE: script cancelled` while the window stayed responsive.
 
 ## 7. Failure modes
 
@@ -138,6 +188,11 @@ permission error, not escalation.
 | `db --metadata` focus fails | metadata/build mismatch or incomplete field set | do not enumerate; re-check the descriptor |
 | `players` returns `insufficient_evidence` | no metadata, wrong build, count/capacity mismatch, unstable snapshots, or invalid-marker/index disagreement | read the JSON `checks`; do not bypass the gate |
 | `players` emits no records | zero slots or all slots invalid | verify the game has loaded a squad/career database |
+| GUI shows `FC 27 not found` | game exited or not discoverable | start FC 27, click Discover, or pass `--pid` |
+| GUI toggle socket unavailable | another instance owns the socket or the runtime directory is inaccessible | read the visible error; only one instance listens per user |
+| Lua `no active Lua database session` | metadata/player session not loaded yet | connect to FC 27 and load metadata first |
+| Lua `FC27LE compatibility:` error | unsupported write/event/memory/helper API | expected; the call is listed in `docs/lua_compatibility.md` |
+| Lua `stale` handle | `LE.db:Refresh`, `Load` or `Reset` was called | call `LE.db:GetTable` again and rebuild handles |
 | `players` names are null | a specific name ID is missing or its pool entry is corrupt | inspect `name_error` and `name_resolution`; do not substitute another player's name |
 | `players` exits 3 on the name pool | `playernames` is absent or its tree/offsets are invalid | use `--no-names` for numeric-only output or revalidate the build |
 

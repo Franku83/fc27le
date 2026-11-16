@@ -1,0 +1,20 @@
+[package]
+name = "fc27-gui"
+description = "FC27LE native Linux player browser and Lua console"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "fc27le-gui"
+path = "src/main.rs"
+
+[dependencies]
+fc27-core = { workspace = true }
+fc27-process = { workspace = true }
+fc27-platform-linux = { workspace = true }
+fc27-game = { workspace = true }
+fc27-lua-compat = { workspace = true }
+clap = { workspace = true }
+eframe = "0.32"

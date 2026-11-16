@@ -6,12 +6,14 @@
 //! descriptors. This module contains only format logic and synthetic tests.
 
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use fc27_core::{Error, Result};
 use fc27_process::ProcessHandle;
 use roxmltree::{Document, Node};
 use serde::Serialize;
 
+use crate::build_identity::sha256_file;
 use crate::db_service::{DbField, DbTable, read_table_fields};
 
 #[derive(Debug, Clone, Serialize)]
@@ -40,6 +42,38 @@ pub struct Metadata {
     pub database_name: String,
     pub database_shortname: String,
     pub tables: Vec<MetadataTable>,
+}
+
+#[derive(Debug, Clone)]
+pub struct LoadedMetadata {
+    pub parsed: Metadata,
+    pub size_bytes: u64,
+    pub sha256: String,
+}
+
+/// Read, parse and hash a caller-supplied metadata XML with a 16 MiB safety cap.
+///
+/// The file is never copied into the repository. This is shared by the CLI,
+/// GUI and Lua compatibility runtime so all three see the same parsed data.
+pub fn load_metadata_file(path: &Path) -> Result<LoadedMetadata> {
+    let size_bytes = std::fs::metadata(path)
+        .map_err(|error| Error::io_context(format!("stat {}", path.display()), error))?
+        .len();
+    if size_bytes > 16 * 1024 * 1024 {
+        return Err(Error::InvalidInput(format!(
+            "metadata file {} is larger than the 16 MiB safety cap",
+            path.display()
+        )));
+    }
+    let xml = std::fs::read_to_string(path)
+        .map_err(|error| Error::io_context(format!("read {}", path.display()), error))?;
+    let parsed = parse_metadata_xml(&xml)?;
+    let sha256 = sha256_file(path)?;
+    Ok(LoadedMetadata {
+        parsed,
+        size_bytes,
+        sha256,
+    })
 }
 
 impl Metadata {

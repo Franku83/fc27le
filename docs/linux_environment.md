@@ -296,9 +296,42 @@ cargo build --release
 `probe` hashes the 235 MiB executable by default; use `--no-hash` to skip that
 cost and `--skip-anchors` to skip the bounded 64 MiB pattern scan.
 
-## 9. What was not changed
+## 9. Desktop session and window behavior
+
+Observed host session during WP6:
+
+| Item | Value |
+| --- | --- |
+| Desktop | KDE Plasma 6.8.3 |
+| Compositor | `kwin_wayland` 6.8.3 |
+| Session | Wayland (`WAYLAND_DISPLAY=wayland-1`) |
+| App transport | XWayland (`DISPLAY=:0`, `WAYLAND_DISPLAY` unset) |
+| Display | 1920x1080 primary (DP-2); X screen reports 3000x1920 across outputs |
+
+`fc27le-gui` is a normal eframe/egui window. F9 hides it while it has keyboard
+focus; a KDE global shortcut bound to `fc27le-gui --toggle` restores it through
+a per-user Unix socket. The optional KWin scripting helper requests activation
+of the FC27LE window by caption and resource class.
+
+Window findings:
+
+* normal floating window, active and raised: keyboard and real mouse input work;
+* X11 `_NET_WM_STATE_ABOVE` / `STAYS_ON_TOP`: compositor keeps the state but the
+  game kept mouse input in testing (click-through), so it is **off by default**;
+* exclusive-fullscreen FC 27 can keep input and stacking even when KWin reports
+  FC27LE active; the helper is best-effort window management, not an overlay or
+  input-capture bypass;
+* borderless/windowed game mode or a second monitor is the reliable interactive
+  setup.
+
+No game window is hooked, captured, resized or moved by FC27LE.
+
+## 10. What was not changed
 
 No game file, third-party file, anti-cheat file, Proton prefix, registry key, graphics
 setting, career save or system sysctl was modified. The only writes performed by
-this project are build artifacts under `target/` and evidence JSON files under
-`docs/evidence/`. The `read --output` option is never used automatically.
+this project are build artifacts under `target/`, evidence files under
+`docs/evidence/`, and files the user explicitly asks the GUI to save (Lua
+scripts). Standard Lua file I/O remains available to scripts; that is the script
+author's action, not an automatic game/save write. The `read --output` option is
+never used automatically.

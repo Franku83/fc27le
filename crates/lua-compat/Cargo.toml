@@ -1,0 +1,15 @@
+[package]
+name = "fc27-lua-compat"
+description = "Read-only FC Live Editor Lua API v2 compatibility for FC27LE"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+fc27-core = { workspace = true }
+fc27-process = { workspace = true }
+fc27-platform-linux = { workspace = true }
+fc27-game = { workspace = true }
+mlua = { version = "0.11", features = ["lua54", "vendored"] }
+serde = { workspace = true }

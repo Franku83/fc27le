@@ -2,17 +2,18 @@
 
 ## 1. Goals and non-goals
 
-**Goal:** a small, auditable, Linux-first Rust workspace that can safely answer
-questions about a running FC 27 process: what it is, which modules it loaded,
-where they are mapped, what bytes are at a verified address, and whether a
-research anchor still matches this build.
+**Goal:** a small, auditable, Linux-first Rust workspace that can safely inspect
+a running FC 27 process, browse its real player database, and execute a
+read-only subset of the Live Editor Lua API using the same verified data layer.
 
 **Non-goals (enforced by absence of code):**
 
 * memory writes, value editing, teleporting, stat changes;
 * DLL injection, `ptrace`, `process_vm_writev`, `mprotect`, remote threads;
-* detours, hooks, pattern patching, anti-cheat or DRM changes;
-* overlay/ImGui UI;
+* detours, hooks, pattern patching, game-function calls, anti-cheat or DRM
+  changes;
+* a true in-game overlay implemented by hooking/capturing the game; the shipped
+  UI is an external native window with documented compositor limits;
 * save-file modification;
 * Windows support claims without a Windows test.
 
@@ -25,7 +26,11 @@ crates/
   platform-linux/    fc27-platform-linux
   platform-windows/  fc27-platform-windows   (documented stub)
   fc27/              fc27-game (profile, discovery, anchors, build identity,
-                     db_service, db_metadata, player_store, name_pool, capability/evidence gates)
+                     db_service, db_metadata, player_store, name_pool,
+                     table_access, capability/evidence gates)
+  lua-compat/        fc27-lua-compat (Lua 5.4 API v2 subset, worker, matrix)
+  gui/               fc27-gui -> binary `fc27le-gui` (eframe/egui, session loader,
+                     socket toggle, optional KWin focus helper)
   cli/               fc27-cli -> binary `fc27le`
 ```
 
@@ -37,7 +42,7 @@ Dependency direction:
                  +--------+-------+
                           ^
                  +--------+-------+
-                 |  fc27-process  |  traits + platform-neutral types + PE parser
+                 |  fc27-process  |  traits + types + PE parser
                  +---+--------+---+
                      ^        ^
        +-------------+        +----------------+
@@ -48,21 +53,27 @@ Dependency direction:
 +------+-------------+              +----------+-----------+
        ^                                       ^
        |             +------------------+      |
-       +-------------+    fc27-game     +------+  (only process/core in practice)
+       +-------------+    fc27-game     +------+  (process/core only in practice)
                      | profile, discovery,
-                     | anchors, build id,
-                     | capability gates
-                     +--------+---------+
-                              ^
-                     +--------+---------+
-                     |     fc27-cli     |
-                     +------------------+
+                     | anchors, build id, db,
+                     | players, names, table_access
+                     +----+---------+---+
+                          ^         ^
+              +-----------+         +-------------+
+              |                                   |
+     +--------+---------+              +----------+---------+
+     |  fc27-lua-compat |              |      fc27-gui      |
+     | Lua 5.4 subset   |<-------------| browser + console  |
+     +------------------+              +----------+---------+
+                                                  |
+                                         +--------+--------+
+                                         |    fc27-cli     |
+                                         +-----------------+
 ```
 
-`fc27-cli` selects the Linux backend explicitly. The Windows crate is a
-workspace member so its API cannot rot, but it is not linked into the Linux
-binary yet. A future `cfg(target_os)` selection can choose the provider without
-changing command code.
+`fc27-cli`, `fc27-gui` and `fc27-lua-compat` all use the verified
+`fc27-game` storage model. The Lua runtime does not read game memory through a
+second implementation, and the GUI does not execute Lua on its render thread.
 
 ## 3. Core types and data flow
 
@@ -296,6 +307,56 @@ Missing names stay null with an explicit error; no name is fabricated.
 
 See `docs/research/player_storage.md` and `docs/research/name_storage.md`.
 
+### 9.1 Generic table snapshots
+
+`fc27_game::table_access::TableSnapshot` generalizes the verified player storage
+model to any metadata table that matches a live descriptor. It snapshots
+`slot_count * record_size` bytes once, bounds the read at 64 MiB, validates every
+field against the record size, maps metadata field names to live 4CC entries,
+and decodes integer (with bias/range check), float32, inline string and
+compressed-string fields. Compressed strings raise an error rather than guessing;
+callers use the name pool where appropriate.
+
+The snapshot is immutable and exposes `is_valid` (high bit of the last record
+byte) plus `read_field`. Both the GUI loader and the Lua runtime use this type;
+there is no parallel Lua database reader.
+
+### 9.2 GUI session, Lua worker and record tokens
+
+The GUI spawns a session thread that performs discovery, database anchor
+verification, metadata validation, player enumeration, name resolution and build
+hashing. Only the resulting `Session` is sent back to the render thread, so the
+UI never blocks on `/proc` reads. Refresh/Reconnect create a new session; errors
+remain visible in the top panel.
+
+Lua runs on its own worker thread. The worker builds a Lua state over a
+`TableProvider` backed by `TableSnapshot`, then executes scripts. The GUI polls
+`LuaEvent` values (session ready, logs, message boxes, finished/error) and never
+calls Lua on the render thread. A debug hook enforces a wall-clock deadline and
+a cancellation flag; `mlua::Lua::set_memory_limit` enforces the memory cap.
+
+Script-visible record handles are `i64` tokens encoding
+`(generation & 0x7FFF, table_id, slot + 1)`. `0` terminates iteration; stale
+tokens are rejected after `LE.db:Refresh/Load/Reset`. Raw addresses are never
+exposed. Table and field userdata carry only snapshot metadata, and every setter
+returns an explicit compatibility error.
+
+### 9.3 Window and F9 behavior
+
+The GUI is a normal external window (`eframe`/`egui`, X11/Wayland). F9 hides it
+when focused and sends `ViewportCommand::Visible(false)`; a Unix-socket command
+restores it and asks KWin to activate the window through `qdbus6` scripting.
+The socket is per-user under `XDG_RUNTIME_DIR` (mode 0600).
+
+The X11 always-on-top state is available but defaults off. In the tested KWin
+6.8.3/Wayland + XWayland session it made the window click-through: the
+compositor kept the hint while mouse input stayed with the game. KWin activation
+can also report FC27LE as active while an exclusive-fullscreen game still owns
+input/stacking, so the helper is best-effort window management, not an overlay
+guarantee. This limitation is documented rather than worked around with hooks,
+input capture or game changes. Borderless/windowed mode or a second display is
+the reliable interactive setup.
+
 ## 10. Error model and exit codes
 
 All fallible APIs return `fc27_core::Result<T>` with a typed `Error`. The CLI
@@ -334,19 +395,23 @@ not logs.
 | `fc27-core` | pattern parsing/matching, hexdump, size formatting |
 | `fc27-process` | PE negative cases, module grouping/filtering, role classification |
 | `fc27-platform-linux` | maps/status/environ parsing, Wine context inference |
-| `fc27-game` | discovery scoring, anchor registry sanity, capability gates |
+| `fc27-game` | discovery scoring, anchor registry sanity, capability gates, metadata parser, table snapshot decoding, player/name storage |
+| `fc27-lua-compat` | 11 integration tests over synthetic snapshots: Lua basics, table/field lookup, valid iteration, invalid table/field errors, missing modules, write/event/MEMORY/HTTP/REQUEST rejection, logger/print/MessageBox, timeout, cancellation and memory limits |
+| `fc27-gui` | filter/sort unit tests; live session, search, detail, Lua run and F9/toggle checks against FC 27 (manual evidence) |
 | `fc27-cli` | address parsing, JSON contract, exit codes |
 | controlled selftest | parent spawns `fc27le selftest-child`; reads a known buffer, checks magic/pattern, refuses 1 MiB+1 and address 0, enumerates modules, confirms discovery |
 
-The selftest is the important one: it exercises the **production** reader against
-a real `/proc/<pid>/mem` of a process owned by the test. It requires no game and
-no privilege, so it is reproducible in CI (Linux only).
+The Lua tests use synthetic `TableSnapshot` fixtures so they do not need the
+game. Live read-only verification is separate: the GUI scanned 21,814 players,
+logged values through `LOGGER`, displayed a `MessageBox` result, and cancelled
+an infinite loop with the Stop button while the window stayed responsive.
 
 Run everything:
 
 ```bash
 cargo test --workspace
 ./target/release/fc27le selftest
+cargo run -p fc27-lua-compat --example matrix > docs/lua_compatibility.md
 ```
 
 ## 13. Windows backend plan
@@ -415,3 +480,10 @@ instructions, paths to execute, or configuration. The tool does not load code
 from the target and does not follow pointers for player data until a validated
 layout exists. A malicious or corrupted target can still return arbitrary bytes;
 outputs are for human analysis, not for automated trust decisions.
+
+Lua scripts are equally untrusted. `mlua` with vendored Lua 5.4 provides the
+interpreter, but Lua is not a security sandbox. Standard file I/O remains
+available for script compatibility; `os.execute`, `io.popen` and
+`package.loadlib` are removed, scripts run under time/memory limits, and the
+database bridge is immutable. The Lua API never exposes raw process memory,
+network access, game-function calls or write primitives.

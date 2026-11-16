@@ -14,6 +14,8 @@
 | Player record layout | **verified** | 152/152 field widths; 22,098 slots; 27,000 capacity; 284 invalid markers |
 | Player enumeration | **implemented read-only** | `fc27le players --metadata`; 21,814 valid rows |
 | Player names | **implemented read-only** | 21,814/21,814 resolved; `playernames` Huffman + `dcplayernames` + edited overrides |
+| GUI player browser | **implemented and tested live** | `fc27le-gui`; search/sort/detail/Lua console |
+| Lua API v2 read-only subset | **implemented and tested** | `crates/lua-compat`; 11 integration tests + live 21,814-player scan |
 | Team/league names | **blocked** | different tables/string fields |
 
 ### WP1 result (2026-11-16)
@@ -47,6 +49,35 @@ WP4 subsequently resolved the record count/data extent and enabled verified
 numeric enumeration; WP5 resolved player names through the Huffman
 `playernames` pool, `dcplayernames` and `editedplayernames`. See
 `docs/research/player_storage.md` and `docs/research/name_storage.md`.
+
+### WP6 result (2026-11-16)
+
+WP6 delivered a usable native application and a read-only Lua compatibility
+runtime:
+
+* `fc27le-gui` connects to the running process, validates metadata and loads
+  21,814 named players on a background thread; search, OVR/POT/height/weight
+  sorting, detail panel, refresh/reconnect, visible errors and a Lua console are
+  implemented;
+* `fc27-gui` uses eframe/egui 0.32 and the existing verified backend;
+  `crates/fc27/src/table_access.rs` provides the shared immutable table snapshot;
+* `crates/lua-compat` implements `LE`, `LE.db`, `GetTable`, record iteration,
+  field reads, `LOGGER`, `MessageBox` and `print` with `mlua` 5.4 vendored;
+  writes, events, `MEMORY`, `HTTP`, `REQUEST`, managers and unverified helpers
+  raise explicit compatibility errors;
+* 11 synthetic integration tests cover the runtime; live GUI tests scanned
+  21,814 players, displayed `MessageBox`, hid/restored with F9 and
+  `--toggle`, cancelled an infinite loop with the Stop button while staying
+  responsive, and accepted real mouse input while FC27LE was the active raised
+  window;
+* the KWin/Wayland always-on-top experiment made the window click-through, and
+  exclusive-fullscreen input capture remains possible, so the default is an
+  interactive floating window. A true exclusive-fullscreen overlay is not
+  claimed; the exact limits are in `docs/compatibility.md`;
+* the complete API matrix is generated into `docs/lua_compatibility.md`.
+
+Automated checks still pass, and the read-only boundary is unchanged: no write,
+hook, injection or game-function call exists in the workspace.
 
 The remaining work is *game-side structure discovery*, not process plumbing. This
 roadmap is ordered by shortest path and by how cheaply a wrong hypothesis can be
@@ -316,15 +347,18 @@ No fuzzing against the live process. No writes, no function calls, no hooks.
 
 ## 9. Recommended next action
 
-WP4 and WP5 are complete. The next work items are:
+WP4, WP5 and WP6 are complete. The next work items are:
 
-1. **WP6 career-state check:** locate a reliable career-mode signal and gate the
-   player command on it.
+1. **WP7 career-state check:** locate a reliable career-mode signal and gate
+   career-dependent reads on it.
 2. **Team/league/competition names:** resolve the other name tables/string
    fields, validating against independent competition data.
 3. **CFS metadata extraction:** recover `data/db/fifa_ng_db-meta.xml` from
    `contentsb.toc` (entry at `0x7E0B8A`, size `0x158CB2`) by identifying its
    codec/key. Do not bundle the XML.
+4. **Lua expansion only with evidence:** verify additional read-only tables and
+   helper functions, then add them to `docs/lua_compatibility.md`; no write or
+   event API until a verified read-only source exists.
 
 `players = CZUM`, the 22,098/27,000/284 storage model, the numeric fields and
 the player-name pools are already verified; do not re-guess them. If a
