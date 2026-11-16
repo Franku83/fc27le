@@ -167,7 +167,7 @@ bit layout is verified (152 fields, 1244 depth bits, 156-byte rows, 4 padding
 bits), and the storage model is verified: slot count `u16 +0x7C`, capacity
 `u16 +0x78`, invalid-marker count `u16 +0x7E`, and validity by the high bit of
 the last record byte. Live capture: **22,098 slots / 27,000 capacity / 284
-invalid / 21,814 valid**, with the primary-index count also **21,814**. The
+invalid / 21,814 valid**, with the playerid-index count also **21,814**. The
 following five fields are decoded and emitted:
 `playerid`, `overallrating`, `potential`, `height`, `weight`.
 

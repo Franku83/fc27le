@@ -129,7 +129,7 @@ players(pid, --metadata FILE)
   -> read the verified slot range twice; require identical snapshots
   -> skip slots whose last byte has bit 7 set
   -> decode playerid/overallrating/potential/height/weight (LSB-first + bias)
-  -> cross-check invalid rows and the primary-index count
+  -> cross-check invalid rows and the playerid-index count
   -> checks + numeric records; names are never invented
 ```
 
@@ -279,7 +279,7 @@ bits + 4 padding bits, non-zero data pointer).
 `+0x78` capacity, `+0x7C` slot count, `+0x7E` invalid-marker count, and the
 high bit of each record's last byte as the invalid predicate. On the tested
 build the `CZUM` capture was 22,098 slots / 27,000 capacity / 284 invalid /
-21,814 valid, with the primary-index count also 21,814. The reader requires two
+21,814 valid, with the playerid-index count also 21,814. The reader requires two
 byte-identical snapshots and emits only five verified numeric fields. Names
 remain blocked on the compressed string pool, so no name is fabricated. The
 metadata XML is never bundled.

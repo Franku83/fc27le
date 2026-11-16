@@ -107,7 +107,7 @@ pub fn capability_report() -> PlayerCapabilityReport {
                 .to_string(),
             "WP4 live cross-check: 232 non-empty tables satisfy slot_count <= capacity and \
              invalid rows == u16 at +0x7E. For CZUM: 22098 slots, 27000 capacity, 284 invalid, \
-             21814 valid (equal to the primary-index count at index-object +0x1C)."
+             21814 valid (equal to the playerid-index count at index-object +0x20)."
                 .to_string(),
             "Famous-player spot check after applying metadata biases: 20801 = 187 cm / 85 kg / \
              ST; 200389 and 212831 decode as goalkeepers; 215914 = 168 cm / CDM."

@@ -138,7 +138,7 @@ GE-Proton11-12:
   **`CZUM`** with 152 fields, 156-byte records, a 1247-bit mask and a live data
   pointer; `teamplayerlinks` resolves to **`RrqT`** (16 fields);
 * WP4 verified the player store: **22,098 slots**, **27,000 capacity**, **284
-  invalid markers**, **21,814 valid rows**, and a primary-index count of
+  invalid markers**, **21,814 valid rows**, and a playerid-index count of
   **21,814**. The reader uses the u16 slot count at `+0x7C`, the last-byte
   invalid marker, and two identical snapshots. It emits playerid,
   overallrating, potential, height and weight; names remain blocked on the

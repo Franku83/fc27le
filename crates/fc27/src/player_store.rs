@@ -22,7 +22,7 @@
 //! non-empty table (232) satisfies `slot_count <= capacity` (`u16` at `+0x78`)
 //! and `invalid_rows == u16 at +0x7E`. For `CZUM`, `+0x7C = 22098`,
 //! `+0x78 = 27000`, `+0x7E = 284`, and `22098 - 284 = 21814`, which equals the
-//! table's primary-index count at index-object `+0x1C`.
+//! table's playerid-index count at index-object `+0x20`.
 //!
 //! Nothing here writes memory, calls a game function, or scans the heap. Every
 //! read is bounded to the verified record range and split into chunks no larger
@@ -79,7 +79,7 @@ pub struct PlayerTableLayout {
     pub capacity: u32,
     /// Deleted/free slots claimed by `u16` at descriptor `+0x7E`.
     pub invalid_marker_count: u32,
-    /// Optional primary-index runtime at descriptor `+0x18`.
+    /// Optional playerid-index runtime (`QVtz`) at descriptor `+0x18`.
     pub index: Option<PlayerIndexInfo>,
     pub fields: Vec<PlayerField>,
 }
@@ -398,7 +398,7 @@ pub fn scan_players(
     let mut scan = scan_snapshot(&first, &layout, limit)?;
     scan.stable_reads = true;
 
-    // The primary-index runtime is a second, independent count. It matched the
+    // The playerid-index runtime is a second, independent count. It matched the
     // validity-bit count for every indexed table in the tested build.
     if let Some(index) = &layout.index {
         let current = handle.read_u32(offset(index.address, 0x20)?)?;

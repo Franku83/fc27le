@@ -162,7 +162,7 @@ Player enumeration additionally requires:
 
 1. a caller-supplied metadata XML that validates against the live manager;
 2. `players` resolving to the verified descriptor with all 152 field widths;
-3. `slot_count <= capacity`, `invalid_rows == +0x7E`, and a matching primary-index
+3. `slot_count <= capacity`, `invalid_rows == +0x7E`, and a matching playerid-index
    count;
 4. two byte-identical snapshots of the verified record range.
 
