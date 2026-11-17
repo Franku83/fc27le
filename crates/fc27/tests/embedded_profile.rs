@@ -184,6 +184,13 @@ fn embedded_profile_decodes_a_verified_shape_snapshot() {
     assert_eq!(layout.slot_count, 2);
     assert_eq!(layout.fields.len(), 8);
 
+    let snapshot =
+        TableSnapshot::load(&mock, &metadata, std::slice::from_ref(&live), "players", 1).unwrap();
+    assert_eq!(
+        snapshot.read_field(0, "playerid").unwrap(),
+        FieldValue::Integer(1)
+    );
+
     let scan = scan_players(&mock, &metadata, &[live], usize::MAX).unwrap();
     assert!(scan.all_checks_passed);
     assert_eq!(scan.valid_slots, 1);
