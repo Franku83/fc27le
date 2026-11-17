@@ -20,8 +20,9 @@ chmod +x fc27le fc27le-gui
 env -u WAYLAND_DISPLAY DISPLAY=:0 ./fc27le-gui
 ```
 
-The archive is dynamically linked against glibc and uses the desktop's
-Mesa/OpenGL/EGL and Wayland/X11 stack. It is not statically linked.
+The published archive is dynamically linked, built on Ubuntu 24.04, and requires
+**glibc 2.39 or newer**. It uses the desktop's Mesa/OpenGL/EGL and Wayland/X11
+stack. It is not statically linked.
 
 ## Highlights
 

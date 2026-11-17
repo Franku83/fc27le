@@ -113,7 +113,7 @@ see `CONTRIBUTING.md`.
 
 The first alpha is published on GitHub Releases:
 
-<https://github.com/Franku83/fc27le/releases>
+<https://github.com/Franku83/fc27le/releases/tag/v0.1.0-alpha.1>
 
 Download `fc27le-v0.1.0-alpha.1-linux-x86_64.tar.gz` and its `.sha256` file,
 verify the checksum, then extract:
@@ -140,10 +140,11 @@ can be invoked independently:
 ./fc27le players <pid>
 ```
 
-The tarball is a dynamically linked Linux x86_64 build. It requires glibc, the
-normal Mesa/OpenGL or EGL stack and the desktop session's X11/Wayland libraries.
-It is not statically linked and is not claimed to be portable to arbitrary
-distributions without testing.
+The published tarball is a dynamically linked Linux x86_64 build created on
+Ubuntu 24.04. It requires **glibc 2.39 or newer**, the normal Mesa/OpenGL or EGL
+stack, and the desktop session's X11/Wayland client libraries. It is not
+statically linked and is not claimed to be portable to arbitrary distributions
+without testing.
 
 ## Installation / Building from source
 
