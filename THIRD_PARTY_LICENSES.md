@@ -17,7 +17,7 @@ and copyright notices are shipped in the corresponding crates.io packages.
 
 ### (MIT OR Apache-2.0) AND Unicode-3.0
 
-`unicode-ident` 1.0.27
+`unicode-ident` 1.0.27, `unicode-normalization` 0.1.26
 
 ### 0BSD OR MIT OR Apache-2.0
 
@@ -121,7 +121,7 @@ and copyright notices are shipped in the corresponding crates.io packages.
 
 ### Zlib OR Apache-2.0 OR MIT
 
-`bytemuck` 1.25.2, `bytemuck_derive` 1.12.1, `dispatch2` 0.3.1, `objc2-app-kit` 0.3.2, `objc2-core-foundation` 0.3.2, `objc2-core-graphics` 0.3.2, `objc2-io-surface` 0.3.2
+`bytemuck` 1.25.2, `bytemuck_derive` 1.12.1, `dispatch2` 0.3.1, `objc2-app-kit` 0.3.2, `objc2-core-foundation` 0.3.2, `objc2-core-graphics` 0.3.2, `objc2-io-surface` 0.3.2, `tinyvec` 1.13.3
 
 ## Font and platform assets
 
