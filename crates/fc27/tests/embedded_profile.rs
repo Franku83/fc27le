@@ -5,6 +5,7 @@ use fc27_game::db_metadata::validate;
 use fc27_game::db_service::DbTable;
 use fc27_game::embedded_profile::{PROFILE_BUILD_SHA256, metadata};
 use fc27_game::player_store::{resolve_layout, scan_players};
+use fc27_game::table_access::{FieldValue, TableSnapshot};
 use fc27_process::{MemoryMapping, ModuleInfo, Pid, ProcessHandle, ProcessInfo, ProcessRole};
 
 struct MockProcess {
