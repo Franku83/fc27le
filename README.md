@@ -1,380 +1,165 @@
 # FC27LE
 
-**An experimental, open-source EA SPORTS FC 27 Live Editor alternative written in Rust, with native Linux and Proton support.**
+**An experimental, open-source, read-only EA SPORTS FC 27 Live Editor alternative for Linux and Proton, built in Rust.**
 
 [![CI](https://github.com/Franku83/fc27le/actions/workflows/ci.yml/badge.svg)](https://github.com/Franku83/fc27le/actions/workflows/ci.yml)
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Alpha](https://img.shields.io/badge/status-experimental%20alpha-orange.svg)](https://github.com/Franku83/fc27le/releases/tag/v0.1.0-alpha.2)
 
-FC27LE is an independent, read-only player browser and Lua scripting host for
-EA SPORTS FC 27 running under Wine/Proton on Linux. It is not affiliated with,
-endorsed by, or derived from EA, the FC Live Editor, or any game distribution.
+**[Download the Linux alpha](https://github.com/Franku83/fc27le/releases/tag/v0.1.0-alpha.2)** · [Report a bug](https://github.com/Franku83/fc27le/issues/new/choose) · [Contribute](CONTRIBUTING.md)
 
-> **Alpha status:** FC27LE is experimental. It is tested against one observed
-> game build and one Linux/Proton environment. Do not expect other builds,
-> distributions, Proton versions or desktop sessions to work without testing.
-> Read-only behaviour is deliberate: FC27LE does not edit game memory, saves,
-> files or online state.
+FC27LE connects to a running FC 27 process under Wine/Proton and browses real
+player data through a native Linux GUI. It also runs a **tested read-only subset
+of Live Editor Lua API v2** and can export Career Mode season statistics.
 
-## Overview
+![FC27LE connected to a live EA SPORTS FC 27 Career Mode session](docs/screenshots/fc27le-showcase.png)
 
-FC27LE connects to a running `FC27.exe` process using Linux `/proc`, verifies
-the database-service path and either its compact embedded profile or a
-caller-supplied metadata descriptor, and exposes the verified player data
-through:
+*Live captures from EA SPORTS FC 27 Career Mode and FC27LE, composed for presentation. The game and the app state are real.*
 
-- a native Rust GUI (eframe/egui), and
-- a Lua 5.4 runtime implementing a tested subset of the FC Live Editor Lua API v2.
+> **Experimental and read-only.** This alpha was validated with one FC 27 executable on CachyOS/KDE and GE-Proton11-12. It cannot edit players, transfers or saves, and other builds or environments are not yet verified.
 
-The project is Linux-first. A Windows backend exists only as a documented stub
-and has not been compiled or tested.
+## What works
 
-## Features
+- **Player browser:** names, IDs, overall rating, potential, height, weight and preferred position.
+- **Fast search:** partial names, multiple words, accents and exact player IDs; sortable results and keyboard navigation.
+- **Lua console:** table lookup, record iteration, field reads, logging, cancellation and explicit errors for unsupported calls.
+- **Career Mode data:** `IsInCM`, the in-game date, season statistics, player/team names and partial competition names.
+- **Season-stat exporter:** a Linux-safe script with UTF-8 CSV escaping, XDG output, atomic writes and no silent overwrite.
+- **Native Linux integration:** automatic process discovery, refresh/reconnect and a floating X11/XWayland window.
+- **Embedded metadata:** no XML file needed for the **verified build** when browsing players.
+- **Diagnostics:** opt-in, sanitized compatibility reports with PID/path redaction.
 
-### Verified functionality
+In the validated session, the reader enumerated **21,814 players**, resolved all
+their names, and read **22,939 valid season-stat records**. The exporter wrote
+**13,653 rows** using the original script's filters.
 
-These features were exercised against a live game session:
+### More screenshots
 
-- Linux `FC27.exe` process discovery under Wine/Proton.
-- Read-only process inspection with bounded reads and mapping validation.
-- FC 27 database metadata validation against live table descriptors.
-- Player enumeration: 22,098 player slots, 284 invalid markers, 21,814 valid
-  players.
-- Player-name resolution through the compressed name pools: 21,814 / 21,814
-  names resolved with zero errors.
-- Native GUI with accent-insensitive, multi-token name search, exact player-ID
-  lookup, OVR/POT/height/weight sorting, keyboard navigation, a player detail
-  panel, refresh/reconnect and visible errors.
-- Embedded minimal metadata profile for the verified build, revalidated against
-  live descriptors on every connection (external XML remains supported).
-- Lua 5.4 runtime with a tested read-only Live Editor Lua API v2 subset:
-  `LE`, `LE.db`, table lookup, record iteration, field reads, `LOGGER`,
-  `MessageBox` and `print`.
-- Career-mode season statistics: 22,939 valid records in the tested career
-  session, with the original player/competition fields, average-rating sum,
-  cards, goals, assists, saves, clean sheets and MOTM values.
-- Linux season-statistics exporter (`scripts/lua/export_season_stats_linux.lua`)
-  with XDG/user-selected output, UTF-8 CSV escaping, atomic writes and no
-  silent overwrite.
-- External floating-window mode with F9 hide/show and a Unix-socket toggle for
-  a KDE global shortcut.
+- [Player browser: Lionel Messi](docs/screenshots/fc27le-players.png)
+- [Lua console: live Career Mode statistics](docs/screenshots/fc27le-lua.png)
 
-### Planned or partial functionality
+## Download & run
 
-- Additional FC 27 game builds and distributions (untested).
-- Additional Proton/Wine versions and Linux distributions (untested).
-- Team and competition names are partial: 703 club names and nine domestic
-  league names are read from the game's own tables; unresolved cups and
-  national-team IDs use the documented `TEAM<id>` / `COBJ<id>` fallbacks.
-  An optional `id_map.json` can supply the exact names.
-- Event callbacks and write APIs (explicit compatibility errors today).
-- Windows process backend (stub only).
-
-FC27LE does **not** claim full Lua API compatibility, game-memory editing,
-injected in-game overlay support, universal FC 27 build compatibility, or
-verified Windows support.
-
-## Current limitations
-
-- **Read-only.** There is no memory-write, save-edit, hook, injection or
-  game-function-call code. Lua setters and write helpers raise explicit errors.
-- **One tested build.** The verified `FC27.exe` SHA-256 is listed below. A hash
-  match only identifies a file; it does not guarantee that a structure layout is
-  unchanged.
-- **Metadata coverage.** The embedded profile covers four tables and only the
-  fields needed for players and names, and is accepted only for the tested build.
-  Other builds, other tables or full-table Lua scripts require a user-supplied
-  matching XML. The XML is proprietary game data and is not distributed.
-- **Embedded profile scope.** With embedded metadata, Lua exposes 4 tables; the
-  full 268-table metadata/live intersection requires external XML.
-- **No true overlay.** The GUI is an external floating window. On the tested
-  KWin/Wayland session, an always-on-top window became click-through and an
-  exclusive-fullscreen game could still keep input. Use borderless/windowed
-  mode or a second monitor for reliable interaction.
-- **Lua is not a sandbox.** Third-party scripts are untrusted. Standard Lua file
-  I/O remains available for compatibility; `os.execute`, `io.popen` and
-  `package.loadlib` are removed. Scripts run with wall-clock, instruction and
-  memory limits.
-- **No online/anti-cheat interaction.** Use offline/single-player only.
-
-## Supported environments and builds
-
-### Tested environment
-
-| Item | Tested value |
-| --- | --- |
-| Game | EA SPORTS FC 27 |
-| Executable | `FC27.exe`, 235,283,352 bytes |
-| SHA-256 | `d81a7a7465718fddcf1eeffde1ee0f952cab69b2c4771ad2aca29c381cd9d5e9` |
-| Runtime | GE-Proton11-12 |
-| Host | CachyOS, KDE Plasma 6.8.3, KWin/Wayland, XWayland for the GUI |
-| Rust | stable toolchain; tested with rustc 1.100.0 |
-| Metadata | embedded minimal profile or caller-supplied matching XML |
-| Live counts | 268/268 metadata tables matched, 263 fixed-row layouts verified |
-| Players | 22,098 slots / 27,000 capacity / 284 invalid / 21,814 valid |
-| Names | 21,814 / 21,814 resolved, 0 errors |
-| Lua tables | 4 with embedded profile; 268 with external XML in the tested session |
-
-Other game builds, Proton versions, Linux distributions, GPUs, compositors and
-desktop sessions require independent testing. Compatibility reports are welcome;
-see `CONTRIBUTING.md`.
-
-## Download and portable installation
-
-The first alpha is published on GitHub Releases:
-
-<https://github.com/Franku83/fc27le/releases/tag/v0.1.0-alpha.1>
-
-Download `fc27le-v0.1.0-alpha.1-linux-x86_64.tar.gz` and its `.sha256` file,
-verify the checksum, then extract:
+Download the `linux-x86_64.tar.gz` archive and its `.sha256` checksum from **[Releases](https://github.com/Franku83/fc27le/releases/tag/v0.1.0-alpha.2)**.
 
 ```bash
-sha256sum -c fc27le-v0.1.0-alpha.1-linux-x86_64.tar.gz.sha256
-tar -xzf fc27le-v0.1.0-alpha.1-linux-x86_64.tar.gz
-cd fc27le-v0.1.0-alpha.1-linux-x86_64
-chmod +x fc27le fc27le-gui
-```
-
-Launch from any directory:
-
-```bash
+sha256sum -c fc27le-v0.1.0-alpha.2-linux-x86_64.tar.gz.sha256
+tar -xzf fc27le-v0.1.0-alpha.2-linux-x86_64.tar.gz
+cd fc27le-v0.1.0-alpha.2-linux-x86_64
 env -u WAYLAND_DISPLAY DISPLAY=:0 ./fc27le-gui
 ```
 
-The embedded profile is selected automatically for the verified build. The CLI
-can be invoked independently:
+Start FC 27 first and enter your Career Mode save so the database is loaded.
+FC27LE should discover the process and select the embedded metadata profile
+automatically **if the executable matches the verified build**. Select an
+external matching metadata XML in Settings for other builds or broader Lua
+database coverage.
 
-```bash
-./fc27le --help
-./fc27le selftest
-./fc27le players <pid>
-```
+**Linux requirements:** x86_64, **glibc 2.39+**, and working X11/XWayland plus
+desktop graphics libraries. This is a dynamically linked Ubuntu 24.04 build,
+not a universal Linux package.
 
-The published tarball is a dynamically linked Linux x86_64 build created on
-Ubuntu 24.04. It requires **glibc 2.39 or newer**, the normal Mesa/OpenGL or EGL
-stack, and the desktop session's X11/Wayland client libraries. It is not
-statically linked and is not claimed to be portable to arbitrary distributions
-without testing.
+For CLI usage, run `./fc27le --help` or `./fc27le selftest`.
 
-## Installation / Building from source
+## Lua scripts and season statistics
 
-Requirements:
-
-- Linux x86_64
-- Rust stable (see `rust-toolchain.toml`)
-- A C toolchain and the usual native dependencies for `eframe`/`egui`
-- FC 27 installed and running under Wine/Proton, for live use
-
-Build everything:
-
-```bash
-cargo build --release --workspace
-```
-
-Binaries:
-
-- `target/release/fc27le` — CLI
-- `target/release/fc27le-gui` — GUI
-
-Run the verification suite:
-
-```bash
-cargo fmt --all --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-cargo build --release --workspace
-```
-
-The controlled reader self-test does not need the game:
-
-```bash
-./target/release/fc27le selftest
-```
-
-## Running the GUI
-
-```bash
-env -u WAYLAND_DISPLAY DISPLAY=:0 ./target/release/fc27le-gui
-```
-
-The GUI auto-discovers the running `FC27.exe` and uses the embedded profile for
-the verified build. If discovery is ambiguous, pass `--pid <pid>`.
-
-For another build or full-table Lua coverage, select external XML in Settings or
-launch with:
-
-```bash
-env -u WAYLAND_DISPLAY DISPLAY=:0 \
-  ./target/release/fc27le-gui \
-  --metadata /path/to/fifa_ng_db-meta.xml
-```
-
-The metadata path can also be supplied with
-`FC27LE_METADATA=/path/to/fifa_ng_db-meta.xml`. Use `--no-embedded` to require
-external metadata.
-
-Useful options:
-
-```bash
-# Start with a player search already applied
-./target/release/fc27le-gui --filter Messi
-
-# Load a Lua script, then run it after the Lua session is ready
-./target/release/fc27le-gui \
-  --script /path/to/script.lua --run-script
-
-# Toggle/show/hide an already running instance
-./target/release/fc27le-gui --toggle
-./target/release/fc27le-gui --show
-./target/release/fc27le-gui --hide
-```
-
-F9 hides the window while it has keyboard focus. For a global shortcut, bind a
-KDE custom shortcut to:
-
-```bash
-fc27le-gui --toggle
-```
-
-### Metadata requirement
-
-For the verified build, no file is required: FC27LE uses a compact, embedded
-profile containing only the fields needed for players and names. Every field is
-rechecked against the live descriptor and the profile is accepted only for the
-exact SHA-256 listed above. See [`docs/embedded_profile.md`](docs/embedded_profile.md).
-
-Other builds, additional tables or full Lua database coverage require a
-user-supplied XML. The file is proprietary game data. FC27LE does not
-redistribute it, search for it, download it or provide acquisition instructions.
-A mismatched or incomplete file is rejected rather than guessed around. The
-path is remembered in the per-user configuration after a successful load.
-
-## Using the player browser
-
-1. Start FC 27 and wait until the game database is loaded.
-2. Launch `fc27le-gui` with the metadata path.
-3. Confirm the connection panel reports the PID, build hash, metadata validation
-   and player counts.
-4. Search by full or partial name, multiple words in any order, accent-free
-   spelling (`Kante` matches `Kanté`, `Mbappe` matches `Mbappé`), or exact
-   player ID. Use Clear to reset.
-5. Sort by name, ID, OVR, POT, height or weight. Click a header again to reverse
-   the order.
-6. Select a row by mouse or with Up/Down/Home/End/PageUp/PageDown. The selected
-   player is preserved across filtering and sorting; refresh keeps the same
-   player ID when it still exists.
-7. Use Refresh or Reconnect after changing game state.
-
-The GUI and Lua runtime use the same verified `fc27-game` table snapshot layer.
-There is no second, divergent database implementation for scripts.
-
-## Lua API compatibility
-
-FC27LE embeds Lua 5.4 through `mlua` (`lua54`, `vendored`). The implemented
-subset is read-only and explicitly error-stubbed elsewhere:
-
-- Supported: `LE`, `LE.db`, `GetTable`, `GetTableByShortname`,
-  `GetTableNames`, record iteration, field reads, `LOGGER`, `MessageBox`,
-  `print`, `IsInCM`, `GetCurrentDate`, `GetPlayerPrimaryPositionName`,
-  `GetPlayerName`, `GetPlayersStats` and `GetPlayerStats`.
-- Partial: `GetTeamIdFromPlayerId` (season-stat team rows),
-  `GetTeamName` (live team table; unresolved IDs use `TEAM<id>`),
-  `GetCompetitionNameByObjID` (domestic leagues; cups use `COBJ<id>` unless an
-  `id_map.json` is supplied).
-- Embedded profile: 4 metadata tables exposed (`players` and the three name
-  tables); the career helpers additionally read the live team/league tables
-  internally. External XML: the tested session exposed 268 tables.
-- Unsupported with explicit errors: write operations, event registration,
-  `MEMORY`, `HTTP`, `REQUEST`, career manager objects and unverified helper
-  functions.
-- The original FC 26 `export_season_stats.lua` is kept unchanged. Use the
-  Linux exporter in `scripts/lua/export_season_stats_linux.lua`; see
-  [`docs/season_stats_export.md`](docs/season_stats_export.md).
-
-Record handles are numeric tokens, not process pointers. They become stale
-after `LE.db:Refresh`, `Load` or `Reset`; obtain a fresh table handle afterwards.
-Scripts run on a background worker with a 30-second wall-clock limit, a 256 MiB
-memory limit and cancellation support.
-
-The full per-function matrix, signatures, return types, evidence and limitations
-is generated in [`docs/lua_compatibility.md`](docs/lua_compatibility.md).
-
-Minimal read-only example:
+The Lua 5.4 runtime supports a **tested read-only subset** of Live Editor API v2:
 
 ```lua
 local players = LE.db:GetTable("players")
-local record = players:GetFirstRecord()
+local row = players:GetFirstRecord()
 local count = 0
-while record > 0 do
-    local playerid = players:GetRecordFieldValue(record, "playerid")
-    local overall = players:GetRecordFieldValue(record, "overallrating")
+while row > 0 do
     count = count + 1
-    record = players:GetNextValidRecord()
+    row = players:GetNextValidRecord()
 end
-LOGGER:LogInfo(string.format("valid players: %d", count))
-MessageBox("FC27LE", string.format("Scanned %d players", count))
+MessageBox("FC27LE", "Players: " .. count)
 ```
 
-## Development roadmap
+The original FC 26 season-statistics script is kept unchanged for reference.
+Use the Linux-compatible exporter instead:
 
-- [x] Read-only process discovery and module/section inspection.
-- [x] Verified database-service path and table descriptor access.
-- [x] Metadata parsing/validation with a caller-supplied XML.
-- [x] Player enumeration and name resolution.
-- [x] Native GUI player browser with indexed search and keyboard navigation.
-- [x] Embedded minimal profile for the verified build.
-- [x] Lua 5.4 read-only compatibility subset.
-- [x] GitHub Actions CI and Linux release tarball.
-- [ ] Additional game-build and Proton compatibility reports.
-- [ ] Team/league/competition names.
-- [ ] Career-state checks and career-specific read-only helpers.
-- [ ] Windows backend, only after a real Windows implementation and test.
-- [ ] Further Lua APIs only when a verified read-only source exists.
+```bash
+FC27LE_EXPORT_DIR="$HOME/Documents/FC27 exports" \
+  ./fc27le-gui --script scripts/lua/export_season_stats_linux.lua --run-script
+```
 
-No roadmap item implies memory writing, hooks, injection or anti-cheat/DRM
-changes.
+See [the season-statistics exporter guide](docs/season_stats_export.md) for the
+CSV columns, source validation, safe-output behavior and the optional
+`id_map.json` competition-name override.
+
+The embedded profile exposes four metadata tables. A matching external XML
+enables wider coverage (268 tables in the tested session). **Write methods,
+game events, MEMORY access and career-manager objects are not supported.**
+Unsupported calls fail explicitly. Third-party Lua scripts are untrusted and may
+still access local files.
+
+See the [full Lua compatibility matrix](docs/lua_compatibility.md).
+
+## Compatibility & limitations
+
+| Item | Status |
+| --- | --- |
+| Tested OS/runtime | CachyOS · KDE/KWin/Wayland · GE-Proton11-12 |
+| Verified `FC27.exe` SHA-256 | `d81a7a7465718fddcf1eeffde1ee0f952cab69b2c4771ad2aca29c381cd9d5e9` |
+| Additional FC 27 builds / Linux setups | Untested; reports welcome |
+| Windows | Not supported yet (backend stub) |
+| Player/transfer/save editing | Not implemented; read-only |
+| In-game overlay | **No true overlay**; external floating window only |
+| Team names | 703 club names from the game's live table; unresolved IDs use `TEAM<id>` |
+| Competition names | Nine domestic leagues resolve; cups/unknown IDs use `COBJ<id>` or an optional `id_map.json` |
+| Career team lookup | `GetTeamIdFromPlayerId` is derived from season rows, not the proprietary career object |
+
+On KWin/Wayland, exclusive fullscreen can keep focus and input even when the
+editor is visible. **Borderless/windowed mode or a second monitor** is more
+reliable. F9 hides the focused editor; for global show/hide, bind a KDE shortcut
+to `fc27le-gui --toggle`.
+
+The embedded profile was validated against previously observed game layouts and
+is checked against live descriptors on connection. See
+[embedded profile details](docs/embedded_profile.md) and
+[compatibility notes](docs/compatibility.md).
+
+## Build from source
+
+Install a stable Rust toolchain and the native dependencies required by
+`eframe/egui`, then:
+
+```bash
+cargo build --release --workspace
+cargo test --workspace
+```
+
+Launch `target/release/fc27le-gui` (or use `target/release/fc27le` for the CLI).
+Additional GUI flags, configuration and development details are documented
+under [`docs/`](docs/).
 
 ## Contributing
 
-Small, evidence-backed contributions are welcome. Read
-[`CONTRIBUTING.md`](CONTRIBUTING.md) first. In particular:
+**Linux/Proton compatibility reports, bug fixes and pull requests are welcome.**
+Include your game executable hash, runtime details, reproduction steps and
+sanitized diagnostics. Do **not** upload game files, saves, metadata XML, memory
+dumps or other proprietary material.
 
-- Do not upload game executables, archives, metadata XML, saves, memory dumps,
-  extracted databases or proprietary assets.
-- Do not add write, injection, hooking or anti-cheat/DRM bypass code.
-- Include reproduction steps, the exact build hash, and sanitized logs.
-- Keep changes consistent with the read-only safety boundary.
-
-## Security
-
-Please do not report security issues in public issues. Use GitHub's private
-vulnerability reporting workflow for this repository; see [`SECURITY.md`](SECURITY.md).
-
-## License
-
-MIT. See [`LICENSE`](LICENSE). Third-party dependency licenses are listed in
-[`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md). The project does not
-redistribute game data or third-party proprietary binaries.
-
-## Disclaimer
-
-FC27LE is an unofficial community project. It is not affiliated with or endorsed
-by EA, the FC Live Editor project, or any game distributor. EA SPORTS FC and
-related marks are trademarks of their respective owners.
-
-The software is provided as-is, without warranty. Use it only with a legally
-obtained copy of the game, offline/single-player, and in accordance with the
-game's terms and applicable law. FC27LE does not modify game files, saves,
-Protection/activation components, or anti-cheat systems. It does not enable or
-encourage online cheating.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before sending a PR. For security issues,
+use GitHub private vulnerability reporting; see [SECURITY.md](SECURITY.md).
 
 ## Documentation
 
-- [`docs/architecture.md`](docs/architecture.md) — workspace, data flow, safety invariants
-- [`docs/compatibility.md`](docs/compatibility.md) — tested environments, builds and limits
-- [`docs/lua_compatibility.md`](docs/lua_compatibility.md) — generated Lua API matrix
-- [`docs/season_stats_export.md`](docs/season_stats_export.md) — Linux season-statistics exporter, data sources and limitations
-- [`docs/embedded_profile.md`](docs/embedded_profile.md) — embedded profile scope and provenance
-- [`CHANGELOG.md`](CHANGELOG.md) — release history
-- [`docs/release_notes_v0.1.0-alpha.1.md`](docs/release_notes_v0.1.0-alpha.1.md) — alpha release notes
-- [`docs/research_roadmap.md`](docs/research_roadmap.md) — evidence gates and next research
-- [`docs/research/`](docs/research/) — database, metadata, player-storage and name-storage notes
-- [`docs/evidence/`](docs/evidence/) — sanitized verification summaries, no raw game data
+- [Architecture and internals](docs/architecture.md)
+- [Compatibility and troubleshooting](docs/compatibility.md)
+- [Embedded metadata profile](docs/embedded_profile.md)
+- [Lua API compatibility matrix](docs/lua_compatibility.md)
+- [Season-statistics exporter](docs/season_stats_export.md)
+- [Research and evidence](docs/research/)
+- [Changelog](CHANGELOG.md) · [Alpha.2 release notes](docs/release_notes_v0.1.0-alpha.2.md)
+
+## License & disclaimer
+
+MIT — see [LICENSE](LICENSE) and [third-party notices](THIRD_PARTY_LICENSES.md).
+
+FC27LE is an independent, unofficial community project, **not affiliated with or
+endorsed by Electronic Arts or FC Live Editor**. It does not ship game files,
+metadata XML or activation tools, and does not modify memory, saves, protection
+systems or anti-cheat. Intended for legally obtained game installations and
+offline/single-player use only. Provided as-is, without warranty.
