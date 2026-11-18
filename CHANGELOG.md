@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.1.0-alpha.2 — 2026-11-18
 
 ### Added
 
@@ -15,6 +15,10 @@
 - Independent `imports/other/helpers` compatibility shim for the original
   exporter.
 - Optional `id_map.json` competition-name overrides (`FC27LE_ID_MAP`).
+- `scripts/lua/career_stats_summary.lua`, a read-only Career Mode statistics
+  example for the Lua console.
+- Real Career Mode, player-browser and Lua screenshots in `docs/screenshots/`.
+- Compact public README and detailed season-statistics exporter documentation.
 
 ### Fixed
 
@@ -31,6 +35,9 @@
   `COBJ<id>` / `TEAM<id>` fallbacks.
 - Repeated export produced a byte-identical `_2.csv` without touching the
   first file.
+- The untouched original FC 26 exporter completed through the compatibility
+  layer and logged `Done`; only its Windows path is intentionally not supported.
+- 104 automated tests passed at release preparation.
 
 ### Known limitations
 

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="0.1.0-alpha.1"
+VERSION="0.1.0-alpha.2"
 NAME="fc27le-v${VERSION}-linux-x86_64"
 DIST="${ROOT}/dist"
 STAGE="${DIST}/${NAME}"
@@ -41,7 +41,14 @@ install -Dm644 CHANGELOG.md "${STAGE}/CHANGELOG.md"
 install -Dm644 docs/lua_compatibility.md "${STAGE}/docs/lua_compatibility.md"
 install -Dm644 docs/embedded_profile.md "${STAGE}/docs/embedded_profile.md"
 install -Dm644 docs/compatibility.md "${STAGE}/docs/compatibility.md"
-install -Dm644 docs/release_notes_v0.1.0-alpha.1.md "${STAGE}/docs/release_notes_v0.1.0-alpha.1.md"
+install -Dm644 docs/release_notes_v0.1.0-alpha.2.md "${STAGE}/docs/release_notes_v0.1.0-alpha.2.md"
+install -Dm644 docs/season_stats_export.md "${STAGE}/docs/season_stats_export.md"
+install -Dm644 docs/screenshots/fc27le-showcase.png "${STAGE}/docs/screenshots/fc27le-showcase.png"
+install -Dm644 docs/screenshots/fc27le-players.png "${STAGE}/docs/screenshots/fc27le-players.png"
+install -Dm644 docs/screenshots/fc27le-lua.png "${STAGE}/docs/screenshots/fc27le-lua.png"
+for script in scripts/lua/*.lua; do
+  install -Dm644 "${script}" "${STAGE}/scripts/lua/$(basename "${script}")"
+done
 
 # Reproducible archive metadata: sorted paths, zero ownership, fixed timestamp.
 tar \
