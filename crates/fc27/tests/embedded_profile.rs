@@ -138,6 +138,7 @@ fn embedded_profile_decodes_a_verified_shape_snapshot() {
         ("potential", "mpuH", 370, 7),
         ("height", "ypBQ", 514, 7),
         ("weight", "sNZW", 655, 7),
+        ("preferredposition1", "wZQU", 579, 5),
     ]
     .into_iter()
     .enumerate()
@@ -159,6 +160,7 @@ fn embedded_profile_decodes_a_verified_shape_snapshot() {
     set_bits(&mut rows[0..156], 370, 7, 0); // potential = 1
     set_bits(&mut rows[0..156], 514, 7, 0); // height = 130
     set_bits(&mut rows[0..156], 655, 7, 0); // weight = 30
+    set_bits(&mut rows[0..156], 579, 5, 25); // preferredposition1 = ST
     rows[156 + 155] |= 0x80; // second row is invalid
 
     mock.write(data_base, &rows);
@@ -167,7 +169,7 @@ fn embedded_profile_decodes_a_verified_shape_snapshot() {
         shortname: "CZUM".to_string(),
         shortname_hex: field_code("CZUM"),
         address: table_base,
-        field_count_byte: 8,
+        field_count_byte: 9,
         data_pointer: data_base,
         header_44: 156,
         header_48: 1247,

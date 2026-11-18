@@ -110,7 +110,10 @@ permission error, not escalation.
 | Build SHA-256 | opt-out with `--no-hash` |
 | `players` table | **supported read-only** on the verified build with the embedded profile or a matching external XML; emits numeric fields and names (`--no-names` for numeric only) |
 | Player names | **supported read-only**: `playernames` Huffman pool, `dcplayernames` IDs 46000+, `editedplayernames` overrides |
-| Team/league/competition names | **not implemented** (different tables/string fields) |
+| Team names | **partial read-only**: live `tWYe` table, 703 validated club names; missing/national IDs use `TEAM<id>` |
+| Competition names | **partial read-only**: nine domestic leagues from `onMQ` + active-competition tags; cups/unknown IDs use `COBJ<id>` or an optional `id_map.json` |
+| Career season statistics | **supported read-only** on the tested build: live `0x5C` vector, 22,939 valid records; date from manager type 24 |
+| Linux season exporter | **provided** in `scripts/lua/export_season_stats_linux.lua`; UTF-8 CSV, atomic writes, no silent overwrite |
 | Memory writes, hooks, injection | **not implemented by design** |
 | GUI player browser | **implemented**: `fc27le-gui`, eframe/egui 0.32, verified live against PID 5714 |
 | GUI player search | name and numeric player ID; verified |

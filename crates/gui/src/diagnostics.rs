@@ -172,11 +172,22 @@ pub fn to_json(input: DiagnosticsInput) -> Result<String, String> {
         .map_err(|error| format!("serialize diagnostics: {error}"))
 }
 
+/// Save a report, creating the parent directory when it does not exist.
+pub fn save_report(path: &std::path::Path, json: &str) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+    std::fs::write(path, json)
+}
+
 /// Replace absolute paths and obvious personal path fragments. The report never
 /// adds paths in the first place; this is defense in depth for error text.
 pub fn sanitize_text(text: &str) -> String {
+    let redacted = redact_pid_values(text);
     let mut output = String::new();
-    for token in text.split_whitespace() {
+    for token in redacted.split_whitespace() {
         if !output.is_empty() {
             output.push(' ');
         }
@@ -190,6 +201,49 @@ pub fn sanitize_text(text: &str) -> String {
         } else {
             output.push_str(token);
         }
+    }
+    output
+}
+
+/// Replace the numeric value after an ASCII `pid` marker. The marker itself is
+/// kept so the log still explains what was redacted.
+fn redact_pid_values(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut output = String::with_capacity(text.len());
+    let mut index = 0usize;
+    while index < bytes.len() {
+        let starts_pid = index + 3 <= bytes.len()
+            && bytes[index..index + 3].eq_ignore_ascii_case(b"pid")
+            && (index == 0 || !bytes[index - 1].is_ascii_alphanumeric());
+        if starts_pid {
+            let mut cursor = index + 3;
+            if cursor < bytes.len() && matches!(bytes[cursor], b's' | b'S') {
+                cursor += 1;
+            }
+            while cursor < bytes.len()
+                && !bytes[cursor].is_ascii_alphanumeric()
+                && bytes[cursor] != b'/'
+                && bytes[cursor] != b'\\'
+            {
+                cursor += 1;
+            }
+            let number_start = cursor;
+            while cursor < bytes.len() && bytes[cursor].is_ascii_digit() {
+                cursor += 1;
+            }
+            if cursor > number_start {
+                output.push_str(&text[index..number_start]);
+                output.push_str("<pid>");
+                index = cursor;
+                continue;
+            }
+        }
+        let character = text[index..]
+            .chars()
+            .next()
+            .expect("index is within the string");
+        output.push(character);
+        index += character.len_utf8();
     }
     output
 }
@@ -274,11 +328,16 @@ mod tests {
             lua_ready: true,
             lua_tables: Some(4),
             errors: vec!["failed to read /home/user/game/FC27.exe".to_string()],
-            logs: vec![("INFO".to_string(), "opened /tmp/private.log".to_string())],
+            logs: vec![(
+                "INFO".to_string(),
+                "opened /tmp/private.log from pid 174907".to_string(),
+            )],
         };
         let json = to_json(input).unwrap();
         assert!(!json.contains("/home/"));
         assert!(!json.contains("/tmp/"));
+        assert!(!json.contains("174907"));
+        assert!(json.contains("<pid>"));
         assert!(json.contains("\"schema_version\": 1"));
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed["app"]["read_only"], true);
@@ -292,5 +351,36 @@ mod tests {
             "open <path> and <path> failed"
         );
         assert_eq!(sanitize_text("no paths here"), "no paths here");
+    }
+
+    #[test]
+    fn save_report_creates_missing_parent_directory() {
+        let root = std::env::temp_dir().join(format!(
+            "fc27le-diagnostics-{}-{}",
+            std::process::id(),
+            now_epoch()
+        ));
+        let path = root.join("nested").join("report.json");
+        let _ = std::fs::remove_dir_all(&root);
+        save_report(&path, "{\"ok\":true}").unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "{\"ok\":true}");
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn sanitize_redacts_pid_values_in_common_forms() {
+        assert_eq!(
+            sanitize_text("connected pid 174907 /FC27.exe"),
+            "connected pid <pid> <path>"
+        );
+        assert_eq!(
+            sanitize_text("PID=42, pid:7; pids#99"),
+            "PID=<pid>, pid:<pid>; pids#<pid>"
+        );
+        assert_eq!(sanitize_text("rapid 123 stays"), "rapid 123 stays");
+        assert_eq!(
+            sanitize_text("non-ASCII José pid 5"),
+            "non-ASCII José pid <pid>"
+        );
     }
 }

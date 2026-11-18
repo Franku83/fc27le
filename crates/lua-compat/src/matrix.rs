@@ -775,13 +775,35 @@ pub static API_MATRIX: &[ApiEntry] = &[
     e!(
         "IsInCM",
         "bool IsInCM()",
-        "error",
+        "boolean",
         "Career mode",
         "read",
-        RequiresRe,
-        "wiki LUA-API",
-        "lua_compat::tests::unsupported_events_and_memory_are_explicit",
-        "No verified career-state flag; no value is fabricated."
+        SupportedTested,
+        "WP8 career core path; live career session",
+        "lua_compat::tests::career_apis_read_fixture_data",
+        "Uses the verified core object path. The proprietary DLL's private event byte is not used."
+    ),
+    e!(
+        "GetCurrentDate",
+        "table GetCurrentDate()",
+        "table",
+        "Career mode",
+        "read",
+        SupportedTested,
+        "WP8 manager type 24 calendar object; live career session",
+        "lua_compat::tests::career_apis_read_fixture_data",
+        "Reads +0x34/+0x38/+0x3C; outside career returns the documented 1 July 2021 default."
+    ),
+    e!(
+        "GetPlayerPrimaryPositionName",
+        "string GetPlayerPrimaryPositionName(int)",
+        "string",
+        "Lua state ready",
+        "read",
+        SupportedTested,
+        "WP8 independent 0..27 position map",
+        "lua_compat::tests::career_apis_read_fixture_data",
+        "Independent compatibility mapping; invalid IDs return INVALID."
     ),
     e!(
         "GetSaveUID",
@@ -803,73 +825,73 @@ pub static API_MATRIX: &[ApiEntry] = &[
         Unimplemented,
         "wiki LUA-API",
         "n/a",
-        "Requires localization/name-table research."
+        "Requires a verified competition-id map; not needed by the season exporter."
     ),
     e!(
         "GetCompetitionNameByObjID",
         "string GetCompetitionNameByObjID(int)",
-        "error",
+        "string",
         "Lua state ready",
         "read",
-        Unimplemented,
-        "wiki LUA-API",
-        "n/a",
-        "Requires localization/name-table research."
+        PartiallySupported,
+        "WP8 live active-competition tags + onMQ league table; optional id_map.json",
+        "lua_compat::tests::career_apis_read_fixture_data",
+        "Domestic leagues resolve from the game's own table. Cups and unknown IDs use the documented COBJ<id> fallback; an id_map.json overrides both."
     ),
     e!(
         "GetTeamIdFromPlayerId",
         "int GetTeamIdFromPlayerId(int)",
-        "error",
+        "integer",
         "Lua state ready",
         "read",
-        Unimplemented,
-        "wiki LUA-API",
-        "n/a",
-        "Requires league/team filtering rules; not implemented."
+        PartiallySupported,
+        "WP8 season-stat team records",
+        "lua_compat::tests::career_apis_read_fixture_data",
+        "Derived from the player's season rows; returns 0 when no row exists. The original career-player object path is not called."
     ),
     e!(
         "GetTeamName",
         "string GetTeamName(int)",
-        "error",
+        "string",
         "Lua state ready",
         "read",
-        Unimplemented,
-        "wiki LUA-API",
-        "n/a",
-        "Requires localized team-name storage."
+        PartiallySupported,
+        "WP8 live tWYe mCXg/vIys team table; 703 validated names",
+        "lua_compat::tests::career_apis_read_fixture_data",
+        "Clubs resolve from the game's own table. Missing/national team IDs use TEAM<id>."
     ),
     e!(
         "GetPlayerName",
         "string GetPlayerName(int)",
-        "error",
+        "string",
         "Lua state ready",
         "read",
-        Unimplemented,
-        "wiki LUA-API",
-        "n/a",
-        "Player names are available through LE.db and the GUI; this v1 helper is not implemented."
+        SupportedTested,
+        "WP5 playernames/dcplayernames/editedplayernames resolver; live 21814/21814",
+        "lua_compat::tests::career_apis_read_fixture_data",
+        "Missing IDs use the original API's PLAYER_<id> fallback."
     ),
     e!(
         "GetPlayersStats",
         "array GetPlayersStats()",
-        "error",
+        "array of tables",
         "Career mode",
         "read",
-        Unimplemented,
-        "wiki LUA-API",
-        "n/a",
-        "Career stats table not implemented."
+        SupportedTested,
+        "WP8 live statistics vector; 22939 valid records in the tested session",
+        "lua_compat::tests::career_apis_read_fixture_data",
+        "Reads the current career vector only. Competition names are partial as described above; no statistic is inferred."
     ),
     e!(
         "GetPlayerStats",
         "array GetPlayerStats(int)",
-        "error",
+        "array of tables",
         "Career mode",
         "read",
-        Unimplemented,
-        "wiki LUA-API",
-        "n/a",
-        "Career stats table not implemented."
+        SupportedTested,
+        "WP8 live statistics vector, filtered by playerid",
+        "lua_compat::tests::career_apis_read_fixture_data",
+        "Same fields and limitations as GetPlayersStats."
     ),
     e!(
         "PlayerExists",

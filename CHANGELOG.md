@@ -1,5 +1,44 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Read-only career season statistics through `GetPlayersStats` and
+  `GetPlayerStats` (22,939 valid live records in the tested career session).
+- `IsInCM`, `GetCurrentDate` (manager type 24 calendar), `GetPlayerName`,
+  `GetTeamIdFromPlayerId`, `GetTeamName`, `GetPlayerPrimaryPositionName` and
+  partial `GetCompetitionNameByObjID`.
+- Linux season-stat exporter (`scripts/lua/export_season_stats_linux.lua`)
+  with XDG/user-selected output, UTF-8 CSV escaping, atomic writes, explicit
+  missing-field errors and no silent overwrite.
+- Independent `imports/other/helpers` compatibility shim for the original
+  exporter.
+- Optional `id_map.json` competition-name overrides (`FC27LE_ID_MAP`).
+
+### Fixed
+
+- Diagnostics reports now create a missing parent directory before saving.
+- Diagnostics sanitization now redacts numeric PID values.
+
+### Verified
+
+- 13,653 exported rows from 22,939 valid statistics records after the original
+  `appearances > 0` and player-table filters; 40 duplicate
+  player/competition rows replaced.
+- 703 club names and nine domestic league names resolved from the game's own
+  tables; unresolved cups and national-team IDs use the documented
+  `COBJ<id>` / `TEAM<id>` fallbacks.
+- Repeated export produced a byte-identical `_2.csv` without touching the
+  first file.
+
+### Known limitations
+
+- Cup and national-team names remain partial without an `id_map.json`.
+- `GetTeamIdFromPlayerId` is derived from season rows; the proprietary
+  career-player object path is not called.
+- The snapshot is taken when the Lua session is created.
+
 ## v0.1.0-alpha.1 — 2026-11-16
 
 First public Linux alpha.

@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use eframe::egui::{self, Color32, RichText, ViewportCommand, WindowLevel};
@@ -335,12 +336,26 @@ impl App {
                         .and_then(|path| path.parent())
                         .map(|path| path.display().to_string())
                         .unwrap_or_else(|| "embedded".to_string());
+                    let id_map_path = std::env::var_os("FC27LE_ID_MAP")
+                        .map(PathBuf::from)
+                        .or_else(|| {
+                            let directory = PathBuf::from(&data_path);
+                            if directory.is_dir() {
+                                let candidate = directory.join("id_map.json");
+                                candidate.is_file().then_some(candidate)
+                            } else {
+                                None
+                            }
+                        });
+                    let player_records = Arc::new(session.player_scan.records.clone());
                     let lua_session = ScriptSession {
                         pid: session.pid,
                         module_name: session.module_name.clone(),
                         metadata: session.metadata.clone(),
                         data_path,
                         max_db_mib: self.max_mib,
+                        player_records,
+                        id_map_path,
                     };
                     self.lua_ready = false;
                     self.lua_session_error = None;
@@ -1211,7 +1226,8 @@ impl App {
                                 }
                             }
                             if let Some(json) = &self.diagnostics_preview {
-                                match std::fs::write(self.diagnostics_path.trim(), json) {
+                                let target = std::path::Path::new(self.diagnostics_path.trim());
+                                match diagnostics::save_report(target, json) {
                                     Ok(()) => self.diagnostics_status = Some(format!("Saved {}", self.diagnostics_path)),
                                     Err(error) => self.diagnostics_status = Some(format!("Save report: {error}")),
                                 }

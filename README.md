@@ -48,6 +48,12 @@ These features were exercised against a live game session:
 - Lua 5.4 runtime with a tested read-only Live Editor Lua API v2 subset:
   `LE`, `LE.db`, table lookup, record iteration, field reads, `LOGGER`,
   `MessageBox` and `print`.
+- Career-mode season statistics: 22,939 valid records in the tested career
+  session, with the original player/competition fields, average-rating sum,
+  cards, goals, assists, saves, clean sheets and MOTM values.
+- Linux season-statistics exporter (`scripts/lua/export_season_stats_linux.lua`)
+  with XDG/user-selected output, UTF-8 CSV escaping, atomic writes and no
+  silent overwrite.
 - External floating-window mode with F9 hide/show and a Unix-socket toggle for
   a KDE global shortcut.
 
@@ -55,8 +61,10 @@ These features were exercised against a live game session:
 
 - Additional FC 27 game builds and distributions (untested).
 - Additional Proton/Wine versions and Linux distributions (untested).
-- Team, league and competition names (not implemented).
-- Career-state checks and career-specific Lua helpers (not implemented).
+- Team and competition names are partial: 703 club names and nine domestic
+  league names are read from the game's own tables; unresolved cups and
+  national-team IDs use the documented `TEAM<id>` / `COBJ<id>` fallbacks.
+  An optional `id_map.json` can supply the exact names.
 - Event callbacks and write APIs (explicit compatibility errors today).
 - Windows process backend (stub only).
 
@@ -265,11 +273,21 @@ subset is read-only and explicitly error-stubbed elsewhere:
 
 - Supported: `LE`, `LE.db`, `GetTable`, `GetTableByShortname`,
   `GetTableNames`, record iteration, field reads, `LOGGER`, `MessageBox`,
-  `print`.
-- Embedded profile: 4 tables exposed (`players` and the three name tables).
-  External XML: the tested session exposed 268 tables.
+  `print`, `IsInCM`, `GetCurrentDate`, `GetPlayerPrimaryPositionName`,
+  `GetPlayerName`, `GetPlayersStats` and `GetPlayerStats`.
+- Partial: `GetTeamIdFromPlayerId` (season-stat team rows),
+  `GetTeamName` (live team table; unresolved IDs use `TEAM<id>`),
+  `GetCompetitionNameByObjID` (domestic leagues; cups use `COBJ<id>` unless an
+  `id_map.json` is supplied).
+- Embedded profile: 4 metadata tables exposed (`players` and the three name
+  tables); the career helpers additionally read the live team/league tables
+  internally. External XML: the tested session exposed 268 tables.
 - Unsupported with explicit errors: write operations, event registration,
-  `MEMORY`, `HTTP`, `REQUEST`, career managers and unverified helper functions.
+  `MEMORY`, `HTTP`, `REQUEST`, career manager objects and unverified helper
+  functions.
+- The original FC 26 `export_season_stats.lua` is kept unchanged. Use the
+  Linux exporter in `scripts/lua/export_season_stats_linux.lua`; see
+  [`docs/season_stats_export.md`](docs/season_stats_export.md).
 
 Record handles are numeric tokens, not process pointers. They become stale
 after `LE.db:Refresh`, `Load` or `Reset`; obtain a fresh table handle afterwards.
@@ -353,6 +371,7 @@ encourage online cheating.
 - [`docs/architecture.md`](docs/architecture.md) — workspace, data flow, safety invariants
 - [`docs/compatibility.md`](docs/compatibility.md) — tested environments, builds and limits
 - [`docs/lua_compatibility.md`](docs/lua_compatibility.md) — generated Lua API matrix
+- [`docs/season_stats_export.md`](docs/season_stats_export.md) — Linux season-statistics exporter, data sources and limitations
 - [`docs/embedded_profile.md`](docs/embedded_profile.md) — embedded profile scope and provenance
 - [`CHANGELOG.md`](CHANGELOG.md) — release history
 - [`docs/release_notes_v0.1.0-alpha.1.md`](docs/release_notes_v0.1.0-alpha.1.md) — alpha release notes

@@ -3,9 +3,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::time::Duration;
 
+use std::collections::BTreeMap;
+
+use fc27_game::career_stats::{CareerStat, GameDate};
 use fc27_game::table_access::{FieldInfo, TableSnapshot, TableSnapshotInfo};
 use fc27_lua_compat::api::{
-    FixtureTableProvider, LogLevel, LuaEvent, ScriptJob, build_fixture_context, run_script,
+    FixtureTableProvider, GameData, LogLevel, LuaEvent, ScriptJob, build_fixture_context,
+    build_fixture_context_with_game_data, run_script,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -139,6 +143,101 @@ fn run(source: &str) -> Result<(fc27_lua_compat::api::LuaContext, Vec<LuaEvent>)
         events.push(event);
     }
     result.map(|()| (context, events))
+}
+
+fn run_with_game_data(
+    source: &str,
+    game_data: GameData,
+) -> Result<(fc27_lua_compat::api::LuaContext, Vec<LuaEvent>), String> {
+    let (tx, rx) = mpsc::channel();
+    let cancel = Arc::new(AtomicBool::new(false));
+    let context = build_fixture_context_with_game_data(fixture(), game_data, cancel.clone(), tx)
+        .map_err(|e| e.to_string())?;
+    let job = ScriptJob {
+        name: "career-test".to_string(),
+        source: source.to_string(),
+        script_dirs: Vec::new(),
+        timeout: Duration::from_secs(2),
+        memory_limit_bytes: 64 * 1024 * 1024,
+    };
+    let result = run_script(&context.lua, &job, cancel);
+    let mut events = Vec::new();
+    while let Ok(event) = rx.try_recv() {
+        events.push(event);
+    }
+    result.map(|()| (context, events))
+}
+
+fn career_game_data() -> GameData {
+    GameData {
+        in_career: true,
+        date: GameDate {
+            day: 13,
+            month: 5,
+            year: 2027,
+        },
+        date_source: "fixture",
+        stats: vec![
+            CareerStat {
+                team_id: 5,
+                player_id: 252042,
+                competition_obj_id: 818,
+                rating_sum: 1825,
+                goals: 33,
+                two_yellow: 0,
+                yellow: 2,
+                red: 0,
+                appearances: 22,
+                assists: 5,
+                motm: 6,
+                saves: 0,
+                goals_conceded: 20,
+                clean_sheets: 9,
+            },
+            CareerStat {
+                team_id: 5,
+                player_id: 252042,
+                competition_obj_id: 511,
+                rating_sum: 120,
+                goals: 2,
+                two_yellow: 0,
+                yellow: 0,
+                red: 0,
+                appearances: 2,
+                assists: 0,
+                motm: 0,
+                saves: 0,
+                goals_conceded: 3,
+                clean_sheets: 1,
+            },
+            CareerStat {
+                team_id: 5,
+                player_id: 257534,
+                competition_obj_id: 818,
+                rating_sum: 1268,
+                goals: 23,
+                two_yellow: 0,
+                yellow: 1,
+                red: 0,
+                appearances: 16,
+                assists: 8,
+                motm: 4,
+                saves: 0,
+                goals_conceded: 14,
+                clean_sheets: 7,
+            },
+        ],
+        stats_error: None,
+        player_names: BTreeMap::from([
+            (252042, "João Pedro".to_string()),
+            (257534, "Cole Palmer".to_string()),
+        ]),
+        team_names: BTreeMap::from([(5, "Chelsea".to_string())]),
+        player_team_ids: BTreeMap::from([(252042, 5), (257534, 5)]),
+        competition_names: BTreeMap::from([(818, "Premier League".to_string())]),
+        competition_source: "fixture",
+        competition_error: None,
+    }
 }
 
 fn logs(events: &[LuaEvent]) -> Vec<(LogLevel, String)> {
@@ -346,22 +445,125 @@ fn unsupported_events_and_memory_are_explicit() {
         ok, err = pcall(function() REQUEST.Get("https://example.invalid") end)
         assert(not ok)
         assert(string.find(tostring(err), "REQUEST"), tostring(err))
-        ok, err = pcall(function() return IsInCM() end)
-        assert(not ok)
-        assert(string.find(tostring(err), "career%-state"), tostring(err))
+        assert(IsInCM() == false)
         for _, name in ipairs({
-            "GetTeamIdFromPlayerId", "GetTeamName", "GetPlayerName",
             "GetDBTablesNames", "GetDBTableFields", "GetDBTableRows",
             "PlayerExists", "GetSaveUID", "GetCompetitionNameByID",
-            "GetCompetitionNameByObjID", "GetPlayersStats", "GetPlayerStats",
         }) do
             assert(type(_G[name]) == "function", name .. " must exist as an explicit stub")
             local stub_ok, stub_err = pcall(_G[name])
             assert(not stub_ok, name .. " must raise")
         end
+        ok, err = pcall(function() return GetPlayersStats() end)
+        assert(not ok)
+        assert(string.find(tostring(err), "career mode"), tostring(err))
         "#,
     )
     .unwrap();
+}
+
+#[test]
+fn career_apis_read_fixture_data() {
+    let (_ctx, _events) = run_with_game_data(
+        r#"
+        assert(IsInCM() == true)
+        local date = GetCurrentDate()
+        assert(date.day == 13 and date.month == 5 and date.year == 2027)
+        assert(GetPlayerName(252042) == "João Pedro")
+        assert(GetPlayerName(999999) == "PLAYER_999999")
+        assert(GetTeamIdFromPlayerId(252042) == 5)
+        assert(GetTeamIdFromPlayerId(999999) == 0)
+        assert(GetTeamName(5) == "Chelsea")
+        assert(GetTeamName(999) == "TEAM999")
+        assert(GetCompetitionNameByObjID(818) == "Premier League")
+        assert(GetCompetitionNameByObjID(999) == "COBJ999")
+        assert(GetPlayerPrimaryPositionName(0) == "GK")
+        assert(GetPlayerPrimaryPositionName(25) == "ST")
+        assert(GetPlayerPrimaryPositionName(999) == "INVALID")
+
+        local all = GetPlayersStats()
+        assert(#all == 3)
+        assert(all[1].teamid == 5)
+        assert(all[1].playerid == 252042)
+        assert(all[1].compobjid == 818)
+        assert(all[1].compname == "Premier League")
+        assert(all[1].avg == 1825)
+        assert(all[1].app == 22)
+        assert(all[1].goals == 33)
+        assert(all[1].assists == 5)
+        assert(all[1].motm == 6)
+        assert(all[1].clean_sheets == 9)
+        assert(all[1].goals_conceded == 20)
+        assert(all[1].saves == 0)
+        assert(all[1].yellow == 2)
+        assert(all[1].two_yellow == 0)
+        assert(all[1].red == 0)
+        assert(all[2].compname == "COBJ511")
+
+        local one = GetPlayerStats(252042)
+        assert(#one == 2)
+        assert(one[1].playerid == 252042 and one[2].playerid == 252042)
+
+        local avg = all[1].avg / all[1].app / 10
+        assert(string.format("%0.2f", avg) == "8.30")
+
+        local ok = pcall(function() require 'imports/other/helpers' end)
+        assert(ok)
+        assert(GetPlayerPrimaryPositionName(21) == "CF")
+        "#,
+        career_game_data(),
+    )
+    .unwrap();
+}
+
+#[test]
+fn career_competition_map_errors_are_explicit() {
+    let mut data = career_game_data();
+    data.competition_error = Some("fixture map is invalid".to_string());
+    run_with_game_data(
+        r#"
+        local ok, err = pcall(function() return GetCompetitionNameByObjID(818) end)
+        assert(not ok)
+        assert(string.find(tostring(err), "fixture map is invalid"), tostring(err))
+        "#,
+        data,
+    )
+    .unwrap();
+}
+
+#[test]
+fn csv_helper_escapes_unicode_and_avoids_overwrite() {
+    let directory = std::env::temp_dir().join(format!("fc27le-csv-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&directory);
+    std::fs::create_dir_all(&directory).unwrap();
+    let csv_path = format!("{}/../../scripts/lua/csv.lua", env!("CARGO_MANIFEST_DIR"));
+    let directory_lua = directory.display().to_string();
+    let source = format!(
+        r#"
+        local csv = assert(loadfile({csv_path:?}))()
+        assert(csv.escape("plain") == "plain")
+        assert(csv.escape("a,b") == '"a,b"')
+        assert(csv.escape('a"b') == '"a""b"')
+        assert(csv.escape("a\nb") == '"a\nb"')
+        assert(csv.escape("João Pedro") == "João Pedro")
+        local path = {directory_lua:?} .. "/season.csv"
+        assert(csv.unique_path(path) == path)
+        csv.write_atomic(path, {{ "header\n", csv.row({{ "João Pedro", 5, "a,b" }}) }})
+        local second = csv.unique_path(path)
+        assert(second == {directory_lua:?} .. "/season_2.csv")
+        csv.write_atomic(second, {{ "second\n" }})
+        local first = assert(io.open(path, "r"))
+        local first_text = first:read("*a")
+        first:close()
+        local other = assert(io.open(second, "r"))
+        local second_text = other:read("*a")
+        other:close()
+        assert(first_text == "header\nJoão Pedro,5,\"a,b\"\n", first_text)
+        assert(second_text == "second\n", second_text)
+        "#
+    );
+    run_with_game_data(&source, GameData::default()).unwrap();
+    std::fs::remove_dir_all(&directory).unwrap();
 }
 
 #[test]

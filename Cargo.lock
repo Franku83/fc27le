@@ -1198,6 +1198,7 @@ dependencies = [
  "fc27-process",
  "mlua",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

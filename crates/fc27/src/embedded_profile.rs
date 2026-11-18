@@ -78,6 +78,11 @@ pub fn metadata() -> Metadata {
             field("potential", "mpuH", INTEGER, 7, 1, 99),
             field("height", "ypBQ", INTEGER, 7, 130, 220),
             field("weight", "sNZW", INTEGER, 7, 30, 150),
+            // The exporter needs the same field the original script reads for
+            // the `position` column. The width and 0..27 range were verified by
+            // correlating the live values for known goalkeepers, defenders,
+            // midfielders and forwards.
+            field("preferredposition1", "wZQU", INTEGER, 5, 0, 27),
         ],
     );
 
@@ -127,7 +132,7 @@ mod tests {
         assert_eq!(profile.tables.len(), PROFILE_TABLE_COUNT);
         assert_eq!(profile.table_by_name("players").unwrap().shortname, "CZUM");
         assert!(profile.tables.iter().all(|table| table.partial));
-        assert_eq!(profile.table_by_name("players").unwrap().fields.len(), 8);
+        assert_eq!(profile.table_by_name("players").unwrap().fields.len(), 9);
         assert_eq!(
             profile.table_by_name("playernames").unwrap().fields.len(),
             2

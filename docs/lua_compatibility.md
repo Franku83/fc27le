@@ -11,10 +11,10 @@ cargo run -p fc27-lua-compat --example matrix > docs/lua_compatibility.md
 
 | Status | Entries |
 | --- | ---: |
-| Supported and tested | 48 |
-| Partially supported | 2 |
-| Unimplemented / not applicable | 43 |
-| Requires further reverse engineering | 16 |
+| Supported and tested | 54 |
+| Partially supported | 5 |
+| Unimplemented / not applicable | 37 |
+| Requires further reverse engineering | 15 |
 
 The runtime is deliberately read-only. Every unsupported call raises an
 explicit `FC27LE compatibility:` error. No call silently succeeds, invents
@@ -105,15 +105,17 @@ data, reports a fake event handler, or pretends a memory write occurred.
 | `LE.aardvark_manager` | `manager object` | error | Lua state ready | career | Requires further reverse engineering | wiki Aardvark | `n/a` | Not implemented; no manager object is created. |
 | `LE.game_localization_manager` | `manager object` | error | Lua state ready | localization | Requires further reverse engineering | wiki Game Localization | `n/a` | Not implemented; no manager object is created. |
 | `LE.players_manager` | `manager object` | error | Lua state ready | career | Requires further reverse engineering | local live_editor.lua | `n/a` | Not implemented; no manager object is created. |
-| `IsInCM` | `bool IsInCM()` | error | Career mode | read | Requires further reverse engineering | wiki LUA-API | `lua_compat::tests::unsupported_events_and_memory_are_explicit` | No verified career-state flag; no value is fabricated. |
+| `IsInCM` | `bool IsInCM()` | boolean | Career mode | read | Supported and tested | WP8 career core path; live career session | `lua_compat::tests::career_apis_read_fixture_data` | Uses the verified core object path. The proprietary DLL's private event byte is not used. |
+| `GetCurrentDate` | `table GetCurrentDate()` | table | Career mode | read | Supported and tested | WP8 manager type 24 calendar object; live career session | `lua_compat::tests::career_apis_read_fixture_data` | Reads +0x34/+0x38/+0x3C; outside career returns the documented 1 July 2021 default. |
+| `GetPlayerPrimaryPositionName` | `string GetPlayerPrimaryPositionName(int)` | string | Lua state ready | read | Supported and tested | WP8 independent 0..27 position map | `lua_compat::tests::career_apis_read_fixture_data` | Independent compatibility mapping; invalid IDs return INVALID. |
 | `GetSaveUID` | `string GetSaveUID()` | error | Career mode | read | Unimplemented | wiki LUA-API | `n/a` | Not implemented in this milestone. |
-| `GetCompetitionNameByID` | `string GetCompetitionNameByID(int)` | error | Lua state ready | read | Unimplemented | wiki LUA-API | `n/a` | Requires localization/name-table research. |
-| `GetCompetitionNameByObjID` | `string GetCompetitionNameByObjID(int)` | error | Lua state ready | read | Unimplemented | wiki LUA-API | `n/a` | Requires localization/name-table research. |
-| `GetTeamIdFromPlayerId` | `int GetTeamIdFromPlayerId(int)` | error | Lua state ready | read | Unimplemented | wiki LUA-API | `n/a` | Requires league/team filtering rules; not implemented. |
-| `GetTeamName` | `string GetTeamName(int)` | error | Lua state ready | read | Unimplemented | wiki LUA-API | `n/a` | Requires localized team-name storage. |
-| `GetPlayerName` | `string GetPlayerName(int)` | error | Lua state ready | read | Unimplemented | wiki LUA-API | `n/a` | Player names are available through LE.db and the GUI; this v1 helper is not implemented. |
-| `GetPlayersStats` | `array GetPlayersStats()` | error | Career mode | read | Unimplemented | wiki LUA-API | `n/a` | Career stats table not implemented. |
-| `GetPlayerStats` | `array GetPlayerStats(int)` | error | Career mode | read | Unimplemented | wiki LUA-API | `n/a` | Career stats table not implemented. |
+| `GetCompetitionNameByID` | `string GetCompetitionNameByID(int)` | error | Lua state ready | read | Unimplemented | wiki LUA-API | `n/a` | Requires a verified competition-id map; not needed by the season exporter. |
+| `GetCompetitionNameByObjID` | `string GetCompetitionNameByObjID(int)` | string | Lua state ready | read | Partially supported | WP8 live active-competition tags + onMQ league table; optional id_map.json | `lua_compat::tests::career_apis_read_fixture_data` | Domestic leagues resolve from the game's own table. Cups and unknown IDs use the documented COBJ<id> fallback; an id_map.json overrides both. |
+| `GetTeamIdFromPlayerId` | `int GetTeamIdFromPlayerId(int)` | integer | Lua state ready | read | Partially supported | WP8 season-stat team records | `lua_compat::tests::career_apis_read_fixture_data` | Derived from the player's season rows; returns 0 when no row exists. The original career-player object path is not called. |
+| `GetTeamName` | `string GetTeamName(int)` | string | Lua state ready | read | Partially supported | WP8 live tWYe mCXg/vIys team table; 703 validated names | `lua_compat::tests::career_apis_read_fixture_data` | Clubs resolve from the game's own table. Missing/national team IDs use TEAM<id>. |
+| `GetPlayerName` | `string GetPlayerName(int)` | string | Lua state ready | read | Supported and tested | WP5 playernames/dcplayernames/editedplayernames resolver; live 21814/21814 | `lua_compat::tests::career_apis_read_fixture_data` | Missing IDs use the original API's PLAYER_<id> fallback. |
+| `GetPlayersStats` | `array GetPlayersStats()` | array of tables | Career mode | read | Supported and tested | WP8 live statistics vector; 22939 valid records in the tested session | `lua_compat::tests::career_apis_read_fixture_data` | Reads the current career vector only. Competition names are partial as described above; no statistic is inferred. |
+| `GetPlayerStats` | `array GetPlayerStats(int)` | array of tables | Career mode | read | Supported and tested | WP8 live statistics vector, filtered by playerid | `lua_compat::tests::career_apis_read_fixture_data` | Same fields and limitations as GetPlayersStats. |
 | `PlayerExists` | `bool PlayerExists(int)` | error | Lua state ready | read | Unimplemented | wiki LUA-API | `n/a` | Can be added later via the verified players snapshot. |
 | `GetDBTablesNames` | `array GetDBTablesNames()` | error | Lua state ready | read | Unimplemented | wiki LUA-API | `n/a` | LE.db:GetTableNames is the supported read-only equivalent. |
 | `GetDBTableFields` | `array GetDBTableFields(string)` | error | Lua state ready | read | Unimplemented | wiki LUA-API | `n/a` | Use table:GetField(s) instead. |

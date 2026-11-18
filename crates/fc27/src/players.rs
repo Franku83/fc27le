@@ -2,9 +2,11 @@
 //!
 //! Numeric player enumeration and player-name resolution are implemented in
 //! [`crate::player_store`] and [`crate::name_pool`], and exposed by
-//! `fc27le players <pid> --metadata FILE`. This module documents the pieces
-//! that are still blocked: authoritative metadata extraction, team/competition
-//! names, and a career-state check.
+//! `fc27le players <pid> --metadata FILE`. Career state, dates, season
+//! statistics and partial team/competition names are implemented in
+//! [`crate::career_stats`]. This module documents the remaining evidence
+//! gates: authoritative metadata extraction, cup/national-team names, the
+//! proprietary career-player team lookup, and build revalidation.
 
 use serde::Serialize;
 
@@ -39,26 +41,27 @@ pub fn missing_evidence() -> Vec<MissingEvidence> {
                 .to_string(),
         },
         MissingEvidence {
-            requirement: "Team and competition names".to_string(),
-            why: "Player names are resolved through `playernames` (Huffman), `dcplayernames` \
-                  (inline 46000+ IDs) and `editedplayernames` (per-player overrides). Team, \
-                  league and competition names use different tables/string fields and are not \
-                  yet exposed by the CLI."
+            requirement: "Cup and national-team display names".to_string(),
+            why: "Club names resolve from the live `tWYe` table and nine domestic league names \
+                  resolve from `onMQ` plus the active-competition tags. Cup competitions and 31 \
+                  national/youth team IDs in the tested career save have no verified name row, \
+                  so the Lua API returns `COBJ<id>` / `TEAM<id>` instead of inventing a name."
                 .to_string(),
-            how_to_collect: "Resolve the relevant table/field 4CCs from the metadata, identify \
-                             whether each string is inline or pool-backed, and validate decoded \
-                             names against independent competition data before emitting them."
+            how_to_collect: "Obtain an authoritative id_map.json from the Live Editor data \
+                             directory or verify the localization key table for TrophyName_ and \
+                             TeamName_ entries. Validate the result against the visible game UI \
+                             before treating the names as supported."
                 .to_string(),
         },
         MissingEvidence {
-            requirement: "Career-mode context check".to_string(),
-            why: "The table exists in the live database, but the tool does not yet verify that a \
-                  career/squad context is active. A menu-mode or partially loaded database could \
-                  expose stale rows."
+            requirement: "Career-player team lookup".to_string(),
+            why: "GetTeamIdFromPlayerId is currently derived from the player's season-stat rows. \
+                  That covers exported players but does not reproduce the proprietary career \
+                  player object's current club, especially for players with no season row."
                 .to_string(),
-            how_to_collect: "Locate the game-state object and the career-mode flag with the same \
-                             anchor discipline used for the event dispatcher, then require it \
-                             before enumeration."
+            how_to_collect: "Reverse the read-only player-manager lookup and the club_teamid \
+                             property used by the original API, then validate it against the \
+                             season-stat team ids for players who have rows."
                 .to_string(),
         },
         MissingEvidence {
@@ -81,11 +84,13 @@ pub fn capability_report() -> PlayerCapabilityReport {
         summary: "Player enumeration and name resolution are implemented and verified read-only. \
                   With a caller-supplied FC 27 metadata XML the CLI resolves `players` to CZUM, \
                   validates the 152-field layout, scans all 22098 slots, skips the 284 invalid \
-                  markers, emits the five verified numeric fields, and resolves names through \
+                  markers, emits the verified numeric fields, and resolves names through \
                   `playernames` (Huffman pool), `dcplayernames` (IDs 46000+) and \
                   `editedplayernames` overrides. A full live pass resolved 21814/21814 player \
-                  names with zero errors. Missing names stay null and are reported; no name is \
-                  invented.",
+                  names with zero errors. Career mode, the in-game date, 22939 season-stat \
+                  records, 703 club names and nine domestic league names were also verified \
+                  read-only. Missing names stay null or use the documented TEAM/COBJ fallback; \
+                  no name is invented.",
         known_from_research: vec![
             "Documented Live Editor Lua API: LE.db:GetTable(\"players\"), GetFirstRecord(), \
              GetNextValidRecord(), GetRecordFieldValue(record, \"playerid\"), \
@@ -129,6 +134,23 @@ pub fn capability_report() -> PlayerCapabilityReport {
              players resolved with zero errors. Spot checks: 20801 Cristiano Ronaldo \
              (first C. Ronaldo, last dos Santos Aveiro, common Cristiano Ronaldo), 158023 Lionel \
              Messi, 212831 Alisson (common Alisson), 215914 N'Golo Kanté, 231747 Kylian Mbappé."
+                .to_string(),
+            "WP8 career state: core key 0x1297F047, manager table at core+0x20 -> +0x10, \
+             calendar manager type 24 at +0x34/+0x38/+0x3C. Live date 13/05/2027."
+                .to_string(),
+            "WP8 season statistics: interface key 0x0A613B9A, vector path \
+             +0x18 -> +0x10 -> +0x08 -> deref +0x00 -> +0x90, 0x5C-byte records. Live total \
+             22,939 valid rows; goals/two-yellow are bits 0..8 / 9..15 of the u32 at +0x10."
+                .to_string(),
+            "WP8 team names: live `tWYe` table, career id at `mCXg`, name at `vIys`; 703 names \
+             validated against Chelsea, Liverpool, Atlético de Madrid, Real Madrid and Getafe."
+                .to_string(),
+            "WP8 competition names: live `onMQ` league table plus active-competition `C<id>` \
+             tags; nine domestic leagues resolve by tag+1. Cups remain COBJ<id> unless an \
+             id_map.json is supplied."
+                .to_string(),
+            "WP8 position field: `preferredposition1` is `wZQU`, 5 bits, 0..27; verified by \
+             correlating live values for known goalkeepers, defenders, midfielders and forwards."
                 .to_string(),
         ],
         missing_evidence: missing_evidence(),

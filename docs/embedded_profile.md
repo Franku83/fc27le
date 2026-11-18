@@ -11,7 +11,7 @@ player browser and name resolver:
 
 | Table | Purpose | Fields |
 | --- | --- | --- |
-| `players` | Player records | `playerid`, `firstnameid`, `lastnameid`, `commonnameid`, `overallrating`, `potential`, `height`, `weight` |
+| `players` | Player records | `playerid`, `firstnameid`, `lastnameid`, `commonnameid`, `overallrating`, `potential`, `height`, `weight`, `preferredposition1` |
 | `playernames` | Compressed name pool | `nameid`, `name` |
 | `dcplayernames` | Inline names for IDs 46000+ | `nameid`, `name` |
 | `editedplayernames` | Per-player overrides | `playerid`, `firstname`, `surname`, `commonname` |
@@ -49,7 +49,8 @@ they are entitled to use.
 ## Lua impact
 
 With the embedded profile, `LE.db.tables_count` is **4**. The `players` table and
-its eight fields work for the documented read-only scan; name lookup works
+its nine fields work for the documented read-only scan and the position column;
+name lookup works
 through the three name tables. With external metadata, the tested session
 exposes the full 268-table metadata/live intersection. Scripts that require
 other tables must use external XML.

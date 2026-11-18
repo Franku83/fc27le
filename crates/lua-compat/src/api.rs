@@ -6,7 +6,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -15,8 +15,12 @@ use std::time::{Duration, Instant};
 
 use fc27_core::{Error, Result};
 use fc27_game::anchors::ScanOptions;
+use fc27_game::career_stats::{
+    self, CareerSnapshot, CareerStat, GameDate, TeamDirectory, team_id_for_player,
+};
 use fc27_game::db_metadata::{Metadata, validate};
 use fc27_game::db_service::{DbTable, inspect};
+use fc27_game::player_store::PlayerRecord;
 use fc27_game::table_access::{FieldInfo, FieldValue, TableSnapshot};
 use fc27_platform_linux::LinuxProcess;
 use fc27_process::{Pid, ProcessHandle, modules::find_module};
@@ -37,6 +41,30 @@ pub struct ScriptSession {
     pub metadata: Metadata,
     pub data_path: String,
     pub max_db_mib: u64,
+    /// Player records already decoded by the GUI session. The Lua API reuses
+    /// these for `GetPlayerName` instead of re-reading the name tables.
+    pub player_records: Arc<Vec<PlayerRecord>>,
+    /// Optional `id_map.json` with a `compobjids` object.
+    pub id_map_path: Option<PathBuf>,
+}
+
+/// Snapshot of the read-only game data available to a Lua script.
+#[derive(Debug, Clone, Default)]
+pub struct GameData {
+    pub in_career: bool,
+    pub date: GameDate,
+    pub date_source: &'static str,
+    pub stats: Vec<CareerStat>,
+    /// Set when career state existed but the statistics source failed. The
+    /// statistics APIs then raise an explicit compatibility error instead of
+    /// returning an empty array as if the season were empty.
+    pub stats_error: Option<String>,
+    pub player_names: BTreeMap<u32, String>,
+    pub team_names: BTreeMap<u32, String>,
+    pub player_team_ids: BTreeMap<u32, u32>,
+    pub competition_names: BTreeMap<u16, String>,
+    pub competition_source: &'static str,
+    pub competition_error: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -303,6 +331,15 @@ pub fn build_live_context(
             "players descriptor did not validate against the supplied metadata".to_string(),
         ));
     }
+    let career = career_stats::inspect(&process, report.service_object_va);
+    let teams = TeamDirectory::load(&process, &report.tables);
+    let live_competitions =
+        career_stats::competition_names(&process, report.service_object_va, &report.tables);
+    let competition_data = merge_competitions(
+        live_competitions,
+        load_competition_map(session.id_map_path.as_deref(), &session.data_path),
+    );
+    let game_data = build_game_data(session, career, teams, competition_data);
     let live_provider = LiveTableProvider::new(process, session.metadata.clone(), report.tables)?;
     let table_count = live_provider.table_count();
     let provider: Rc<RefCell<Box<dyn TableProvider>>> =
@@ -316,6 +353,7 @@ pub fn build_live_context(
         &module,
         &session.data_path,
         table_count,
+        game_data,
     )?;
     Ok(LuaContext {
         lua,
@@ -324,9 +362,169 @@ pub fn build_live_context(
     })
 }
 
+struct CompetitionData {
+    names: BTreeMap<u16, String>,
+    source: &'static str,
+    error: Option<String>,
+}
+
+fn merge_competitions(
+    live: Result<BTreeMap<u16, String>>,
+    id_map: (BTreeMap<u16, String>, &'static str, Option<String>),
+) -> CompetitionData {
+    let mut names = live.unwrap_or_default();
+    let live_count = names.len();
+    let (id_names, id_source, id_error) = id_map;
+    for (object_id, name) in id_names {
+        names.insert(object_id, name);
+    }
+    let source = if id_source == "id_map.json" && live_count > 0 {
+        "id_map.json + live league table"
+    } else if id_source == "id_map.json" {
+        "id_map.json"
+    } else if live_count > 0 {
+        "live league table"
+    } else {
+        "documented_cobj_fallback"
+    };
+    CompetitionData {
+        names,
+        source,
+        error: id_error,
+    }
+}
+
+fn build_game_data(
+    session: &ScriptSession,
+    career: Result<CareerSnapshot>,
+    teams: Result<TeamDirectory>,
+    competitions: CompetitionData,
+) -> GameData {
+    let (in_career, date, date_source, stats, stats_error) = match career {
+        Ok(snapshot) => (
+            snapshot.in_career,
+            snapshot.date,
+            snapshot.date_source,
+            snapshot.stats,
+            None,
+        ),
+        Err(error) => (
+            false,
+            GameDate::default(),
+            "default_outside_career",
+            Vec::new(),
+            Some(error.to_string()),
+        ),
+    };
+    let mut player_names = BTreeMap::new();
+    for record in session.player_records.iter() {
+        if let Some(name) = &record.display_name {
+            if !name.is_empty() {
+                player_names.insert(record.player_id, name.clone());
+            }
+        }
+    }
+    let team_names = match teams {
+        Ok(directory) => directory.names().clone(),
+        Err(_) => BTreeMap::new(),
+    };
+    let mut player_team_ids = BTreeMap::new();
+    let players: BTreeSet<u32> = stats.iter().map(|stat| stat.player_id).collect();
+    for player_id in players {
+        if let Some(team_id) = team_id_for_player(&stats, player_id) {
+            player_team_ids.insert(player_id, team_id);
+        }
+    }
+    GameData {
+        in_career,
+        date,
+        date_source,
+        stats,
+        stats_error,
+        player_names,
+        team_names,
+        player_team_ids,
+        competition_names: competitions.names,
+        competition_source: competitions.source,
+        competition_error: competitions.error,
+    }
+}
+
+fn load_competition_map(
+    explicit: Option<&Path>,
+    data_path: &str,
+) -> (BTreeMap<u16, String>, &'static str, Option<String>) {
+    let candidate = explicit.map(Path::to_path_buf).or_else(|| {
+        let directory = Path::new(data_path);
+        if directory.is_dir() {
+            let path = directory.join("id_map.json");
+            path.is_file().then_some(path)
+        } else {
+            None
+        }
+    });
+    let Some(path) = candidate else {
+        return (BTreeMap::new(), "documented_cobj_fallback", None);
+    };
+    if !path.is_file() {
+        return (
+            BTreeMap::new(),
+            "documented_cobj_fallback",
+            Some(format!(
+                "id_map.json was requested but not found at {}",
+                path.display()
+            )),
+        );
+    }
+    match read_competition_map(&path) {
+        Ok(map) => (map, "id_map.json", None),
+        Err(error) => (
+            BTreeMap::new(),
+            "id_map_error",
+            Some(format!("{}: {error}", path.display())),
+        ),
+    }
+}
+
+fn read_competition_map(path: &Path) -> std::result::Result<BTreeMap<u16, String>, String> {
+    let text = std::fs::read_to_string(path)
+        .map_err(|error| format!("cannot read id_map.json: {error}"))?;
+    let value: serde_json::Value =
+        serde_json::from_str(&text).map_err(|error| format!("invalid JSON: {error}"))?;
+    let object = value
+        .get("compobjids")
+        .ok_or_else(|| "missing `compobjids` object".to_string())?
+        .as_object()
+        .ok_or_else(|| "`compobjids` must be an object".to_string())?;
+    let mut map = BTreeMap::new();
+    for (key, value) in object {
+        let id: u16 = key
+            .parse()
+            .map_err(|_| format!("compobjid key `{key}` is not a 16-bit integer"))?;
+        let name = value
+            .as_str()
+            .ok_or_else(|| format!("compobjid {id} name must be a string"))?;
+        if name.trim().is_empty() {
+            return Err(format!("compobjid {id} name is empty"));
+        }
+        map.insert(id, name.to_string());
+    }
+    Ok(map)
+}
+
 /// Build a Lua state over an already-constructed fixture provider (tests).
 pub fn build_fixture_context(
     provider: FixtureTableProvider,
+    cancel: Arc<AtomicBool>,
+    events: Sender<LuaEvent>,
+) -> Result<LuaContext> {
+    build_fixture_context_with_game_data(provider, GameData::default(), cancel, events)
+}
+
+/// Build a Lua state over a fixture provider and explicit game data.
+pub fn build_fixture_context_with_game_data(
+    provider: FixtureTableProvider,
+    game_data: GameData,
     cancel: Arc<AtomicBool>,
     events: Sender<LuaEvent>,
 ) -> Result<LuaContext> {
@@ -341,7 +539,16 @@ pub fn build_fixture_context(
         kind: fc27_process::ModuleKind::Pe,
         pe: None,
     };
-    register_api(&lua, provider, cancel, events, &module, "", table_count)?;
+    register_api(
+        &lua,
+        provider,
+        cancel,
+        events,
+        &module,
+        "",
+        table_count,
+        game_data,
+    )?;
     Ok(LuaContext {
         lua,
         pid: Pid(0),
@@ -412,6 +619,7 @@ fn install_package_path(lua: &Lua, dirs: &[PathBuf]) -> mlua::Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn register_api(
     lua: &Lua,
     provider: Rc<RefCell<Box<dyn TableProvider>>>,
@@ -420,6 +628,7 @@ fn register_api(
     module: &fc27_process::ModuleInfo,
     data_path: &str,
     table_count: usize,
+    game_data: GameData,
 ) -> Result<()> {
     lua.globals()
         .set("LE_VERSION", API_VERSION)
@@ -474,9 +683,11 @@ fn register_api(
     register_logger(lua, events.clone())?;
     register_print(lua, events.clone())?;
     register_message_box(lua, events.clone())?;
+    register_game_data(lua, Arc::new(game_data))?;
     register_unsupported(lua)?;
     register_event_stubs(lua)?;
     register_unsafe_object_stubs(lua)?;
+    register_compat_modules(lua)?;
 
     Ok(())
 }
@@ -617,15 +828,276 @@ fn register_message_box(lua: &Lua, events: Sender<LuaEvent>) -> Result<()> {
     Ok(())
 }
 
+fn register_game_data(lua: &Lua, data: Arc<GameData>) -> Result<()> {
+    let is_in_cm = data.clone();
+    lua.globals()
+        .set(
+            "IsInCM",
+            lua.create_function(move |_, ()| Ok(is_in_cm.in_career))
+                .map_err(mlua_to_core)?,
+        )
+        .map_err(mlua_to_core)?;
+
+    let current_date = data.clone();
+    lua.globals()
+        .set(
+            "GetCurrentDate",
+            lua.create_function(move |lua, ()| {
+                let table = lua.create_table()?;
+                table.set("day", current_date.date.day)?;
+                table.set("month", current_date.date.month)?;
+                table.set("year", current_date.date.year)?;
+                Ok(table)
+            })
+            .map_err(mlua_to_core)?,
+        )
+        .map_err(mlua_to_core)?;
+
+    lua.globals()
+        .set(
+            "GetPlayerPrimaryPositionName",
+            lua.create_function(|_, position: i64| Ok(player_primary_position_name(position)))
+                .map_err(mlua_to_core)?,
+        )
+        .map_err(mlua_to_core)?;
+
+    let names = data.clone();
+    lua.globals()
+        .set(
+            "GetPlayerName",
+            lua.create_function(move |_, player_id: i64| {
+                let player_id = u32::try_from(player_id).unwrap_or(0);
+                Ok(names
+                    .player_names
+                    .get(&player_id)
+                    .cloned()
+                    .unwrap_or_else(|| format!("PLAYER_{player_id}")))
+            })
+            .map_err(mlua_to_core)?,
+        )
+        .map_err(mlua_to_core)?;
+
+    let teams = data.clone();
+    lua.globals()
+        .set(
+            "GetTeamIdFromPlayerId",
+            lua.create_function(move |_, player_id: i64| {
+                let player_id = u32::try_from(player_id).unwrap_or(0);
+                Ok(teams.player_team_ids.get(&player_id).copied().unwrap_or(0) as i64)
+            })
+            .map_err(mlua_to_core)?,
+        )
+        .map_err(mlua_to_core)?;
+
+    let team_names = data.clone();
+    lua.globals()
+        .set(
+            "GetTeamName",
+            lua.create_function(move |_, team_id: i64| {
+                let team_id = u32::try_from(team_id).unwrap_or(0);
+                if team_id == 0 {
+                    return Ok(String::new());
+                }
+                Ok(team_names
+                    .team_names
+                    .get(&team_id)
+                    .cloned()
+                    .unwrap_or_else(|| format!("TEAM{team_id}")))
+            })
+            .map_err(mlua_to_core)?,
+        )
+        .map_err(mlua_to_core)?;
+
+    let competitions = data.clone();
+    lua.globals()
+        .set(
+            "GetCompetitionNameByObjID",
+            lua.create_function(move |_, object_id: i64| {
+                if let Some(error) = &competitions.competition_error {
+                    return Err(compat_error(format!("GetCompetitionNameByObjID: {error}")));
+                }
+                let object_id = u16::try_from(object_id).unwrap_or(0);
+                Ok(competitions
+                    .competition_names
+                    .get(&object_id)
+                    .cloned()
+                    .unwrap_or_else(|| format!("COBJ{object_id}")))
+            })
+            .map_err(mlua_to_core)?,
+        )
+        .map_err(mlua_to_core)?;
+
+    let all_stats = data.clone();
+    lua.globals()
+        .set(
+            "GetPlayersStats",
+            lua.create_function(move |lua, ()| {
+                ensure_stats_available(&all_stats)?;
+                let result = lua.create_table()?;
+                for (index, stat) in all_stats.stats.iter().enumerate() {
+                    let row = lua.create_table()?;
+                    write_stat_fields(&all_stats, &row, stat)?;
+                    result.set(index + 1, row)?;
+                }
+                Ok(result)
+            })
+            .map_err(mlua_to_core)?,
+        )
+        .map_err(mlua_to_core)?;
+
+    let player_stats = data;
+    lua.globals()
+        .set(
+            "GetPlayerStats",
+            lua.create_function(move |lua, player_id: i64| {
+                ensure_stats_available(&player_stats)?;
+                let player_id = u32::try_from(player_id).unwrap_or(0);
+                let result = lua.create_table()?;
+                for (index, stat) in (1..).zip(
+                    player_stats
+                        .stats
+                        .iter()
+                        .filter(|stat| stat.player_id == player_id),
+                ) {
+                    let row = lua.create_table()?;
+                    write_stat_fields(&player_stats, &row, stat)?;
+                    result.set(index, row)?;
+                }
+                Ok(result)
+            })
+            .map_err(mlua_to_core)?,
+        )
+        .map_err(mlua_to_core)?;
+
+    Ok(())
+}
+
+fn ensure_stats_available(data: &GameData) -> mlua::Result<()> {
+    if !data.in_career {
+        return Err(compat_error(
+            "This function can be executed only in career mode",
+        ));
+    }
+    if let Some(error) = &data.stats_error {
+        return Err(compat_error(format!(
+            "career season statistics are unavailable: {error}"
+        )));
+    }
+    Ok(())
+}
+
+fn write_stat_fields(data: &GameData, row: &Table, stat: &CareerStat) -> mlua::Result<()> {
+    row.set("teamid", stat.team_id)?;
+    row.set("playerid", stat.player_id)?;
+    row.set("compobjid", stat.competition_obj_id)?;
+    row.set("avg", stat.rating_sum)?;
+    row.set("goals", stat.goals)?;
+    row.set("yellow", stat.yellow)?;
+    row.set("red", stat.red)?;
+    row.set("app", stat.appearances)?;
+    row.set("assists", stat.assists)?;
+    row.set("clean_sheets", stat.clean_sheets)?;
+    row.set("motm", stat.motm)?;
+    row.set("two_yellow", stat.two_yellow)?;
+    row.set("goals_conceded", stat.goals_conceded)?;
+    row.set("saves", stat.saves)?;
+    row.set(
+        "compname",
+        data.competition_names
+            .get(&stat.competition_obj_id)
+            .cloned()
+            .unwrap_or_else(|| format!("COBJ{}", stat.competition_obj_id)),
+    )?;
+    Ok(())
+}
+
+fn player_primary_position_name(position: i64) -> &'static str {
+    match position {
+        0 => "GK",
+        1 => "SW",
+        2 => "RWB",
+        3 => "RB",
+        4 => "RCB",
+        5 => "CB",
+        6 => "LCB",
+        7 => "LB",
+        8 => "LWB",
+        9 => "RDM",
+        10 => "CDM",
+        11 => "LDM",
+        12 => "RM",
+        13 => "RCM",
+        14 => "CM",
+        15 => "LCM",
+        16 => "LM",
+        17 => "RAM",
+        18 => "CAM",
+        19 => "LAM",
+        20 => "RF",
+        21 => "CF",
+        22 => "LF",
+        23 => "RW",
+        24 => "RS",
+        25 => "ST",
+        26 => "LS",
+        27 => "LW",
+        _ => "INVALID",
+    }
+}
+
+fn register_compat_modules(lua: &Lua) -> Result<()> {
+    let package: Table = lua.globals().get("package").map_err(mlua_to_core)?;
+    let preload: Table = package.get("preload").map_err(mlua_to_core)?;
+    let install = lua
+        .create_function(|lua, ()| -> mlua::Result<()> {
+            // Independent compatibility shim. It intentionally avoids the
+            // proprietary imports/core/date and career_mode helpers and only
+            // fills in the two functions the supplied exporter needs.
+            lua.load(COMPAT_HELPER_SOURCE).exec()?;
+            Ok(())
+        })
+        .map_err(mlua_to_core)?;
+    preload
+        .set("imports/other/helpers", install)
+        .map_err(mlua_to_core)?;
+    Ok(())
+}
+
+const COMPAT_HELPER_SOURCE: &str = r#"
+local positions = {
+    [0] = "GK", [1] = "SW", [2] = "RWB", [3] = "RB", [4] = "RCB",
+    [5] = "CB", [6] = "LCB", [7] = "LB", [8] = "LWB", [9] = "RDM",
+    [10] = "CDM", [11] = "LDM", [12] = "RM", [13] = "RCM", [14] = "CM",
+    [15] = "LCM", [16] = "LM", [17] = "RAM", [18] = "CAM", [19] = "LAM",
+    [20] = "RF", [21] = "CF", [22] = "LF", [23] = "RW", [24] = "RS",
+    [25] = "ST", [26] = "LS", [27] = "LW"
+}
+if type(GetPlayerPrimaryPositionName) ~= "function" then
+    function GetPlayerPrimaryPositionName(pos_id)
+        return positions[pos_id] or "INVALID"
+    end
+end
+if type(GetCurrentDate) ~= "function" then
+    function GetCurrentDate()
+        return { day = 1, month = 7, year = 2021 }
+    end
+end
+if type(CalculatePlayerAge) ~= "function" then
+    function CalculatePlayerAge(current_date, birthdate)
+        local age = current_date.year - birthdate.year
+        if current_date.month < birthdate.month or
+           (current_date.month == birthdate.month and current_date.day < birthdate.day) then
+            age = age - 1
+        end
+        return age
+    end
+end
+return true
+"#;
+
 const UNSUPPORTED_READ: &[&str] = &[
-    "GetTeamIdFromPlayerId",
-    "GetTeamName",
-    "GetPlayerName",
     "GetSaveUID",
     "GetCompetitionNameByID",
-    "GetCompetitionNameByObjID",
-    "GetPlayersStats",
-    "GetPlayerStats",
     "GetDBTablesNames",
     "GetDBTableFields",
     "GetDBTableRows",
@@ -664,7 +1136,6 @@ const UNSUPPORTED_WRITE: &[&str] = &[
 ];
 
 const UNSUPPORTED_QUERY: &[&str] = &[
-    "IsInCM",
     "PlayerHasDevelopementPlan",
     "IsPlayerLoanedOut",
     "IsPlayerPresigned",
