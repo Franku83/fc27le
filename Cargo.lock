@@ -1141,7 +1141,7 @@ checksum = "caf1079563223d5d59d83c85886a56e586cfd5c1a26292e971a0fa266531ac5a"
 
 [[package]]
 name = "fc27-cli"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "clap",
  "fc27-core",
@@ -1156,14 +1156,14 @@ dependencies = [
 
 [[package]]
 name = "fc27-core"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "thiserror 2.0.21",
 ]
 
 [[package]]
 name = "fc27-game"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "fc27-core",
  "fc27-process",
@@ -1174,7 +1174,7 @@ dependencies = [
 
 [[package]]
 name = "fc27-gui"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "clap",
  "eframe",
@@ -1190,7 +1190,7 @@ dependencies = [
 
 [[package]]
 name = "fc27-lua-compat"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "fc27-core",
  "fc27-game",
@@ -1203,7 +1203,7 @@ dependencies = [
 
 [[package]]
 name = "fc27-platform-linux"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "fc27-core",
  "fc27-process",
@@ -1212,7 +1212,7 @@ dependencies = [
 
 [[package]]
 name = "fc27-platform-windows"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "fc27-core",
  "fc27-process",
@@ -1221,7 +1221,7 @@ dependencies = [
 
 [[package]]
 name = "fc27-process"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "fc27-core",
  "serde",
