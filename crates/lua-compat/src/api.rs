@@ -829,6 +829,26 @@ fn register_message_box(lua: &Lua, events: Sender<LuaEvent>) -> Result<()> {
 }
 
 fn register_game_data(lua: &Lua, data: Arc<GameData>) -> Result<()> {
+    // Export-path helper. This creates only a directory chosen by the script;
+    // it does not touch game memory or write files.
+    lua.globals()
+        .set(
+            "FC27LE_EnsureDirectory",
+            lua.create_function(|_, path: String| {
+                if path.trim().is_empty() {
+                    return Err(compat_error(
+                        "FC27LE_EnsureDirectory requires a non-empty path",
+                    ));
+                }
+                std::fs::create_dir_all(&path).map_err(|error| {
+                    compat_error(format!("FC27LE_EnsureDirectory({path}): {error}"))
+                })?;
+                Ok(true)
+            })
+            .map_err(mlua_to_core)?,
+        )
+        .map_err(mlua_to_core)?;
+
     let is_in_cm = data.clone();
     lua.globals()
         .set(

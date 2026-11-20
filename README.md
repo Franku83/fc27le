@@ -88,6 +88,18 @@ See [the season-statistics exporter guide](docs/season_stats_export.md) for the
 CSV columns, source validation, safe-output behavior and the optional
 `id_map.json` competition-name override.
 
+The embedded profile also exposes 52 independently verified FC 27 player fields
+for **user-supplied** Lua scripts: birthdate, nationality, preferred foot,
+contract year, outfield and goalkeeper PlayStyles, retirement, the six face
+stats and the raw attributes used by generated players. FC27LE does **not**
+bundle a scouting script. First-party helpers for decoding those fields and
+writing safe CSV output live in `scripts/lua/player_fields.lua` and
+`scripts/lua/csv.lua`.
+
+See [verified player fields](docs/player_field_coverage.md) and
+[Lua player-field helpers](docs/lua_player_fields.md). Third-party scripts are
+not redistributed; users may run their own scripts where compatible.
+
 The embedded profile exposes four metadata tables. A matching external XML
 enables wider coverage (268 tables in the tested session). **Write methods,
 game events, MEMORY access and career-manager objects are not supported.**
@@ -151,6 +163,8 @@ use GitHub private vulnerability reporting; see [SECURITY.md](SECURITY.md).
 - [Embedded metadata profile](docs/embedded_profile.md)
 - [Lua API compatibility matrix](docs/lua_compatibility.md)
 - [Season-statistics exporter](docs/season_stats_export.md)
+- [Lua player-field helpers](docs/lua_player_fields.md)
+- [Verified player fields](docs/player_field_coverage.md)
 - [Research and evidence](docs/research/)
 - [Changelog](CHANGELOG.md) · [Alpha.2 release notes](docs/release_notes_v0.1.0-alpha.2.md)
 

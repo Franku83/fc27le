@@ -7,11 +7,11 @@ metadata XML. The compact profile is implemented in
 ## What is embedded
 
 The profile contains four tables and only the fields used by the read-only
-player browser and name resolver:
+player browser, name resolver and first-party player-field helpers:
 
 | Table | Purpose | Fields |
 | --- | --- | --- |
-| `players` | Player records | `playerid`, `firstnameid`, `lastnameid`, `commonnameid`, `overallrating`, `potential`, `height`, `weight`, `preferredposition1` |
+| `players` | Player records | Identity and position fields used by the browser, plus the independently verified player fields (birthdate, gender, nationality, preferred foot, contract, PlayStyles, retirement, six face stats and the raw attributes used for generated players). See [verified player fields](player_field_coverage.md) for the complete 4CC table. |
 | `playernames` | Compressed name pool | `nameid`, `name` |
 | `dcplayernames` | Inline names for IDs 46000+ | `nameid`, `name` |
 | `editedplayernames` | Per-player overrides | `playerid`, `firstname`, `surname`, `commonname` |
@@ -34,8 +34,10 @@ This is **not** a converted or redistributed copy of the proprietary metadata
 XML. It is a hand-written minimal schema containing only the identifiers and
 decoding bounds needed by the independently verified reader. The field set was
 derived from the runtime facts needed by WP4/WP5 and is revalidated live on every
-connection. No XML document, extracted table dump, player dump or third-party
-file is included.
+connection. The player fields added in WP10 were verified by correlating live
+FC 27 values with known players, generated-player behaviour and the independently
+supplied FC 26 column schema; the schema itself is not embedded. No XML
+document, extracted table dump, player dump or third-party file is included.
 
 The external XML mode remains available for:
 
@@ -48,12 +50,12 @@ they are entitled to use.
 
 ## Lua impact
 
-With the embedded profile, `LE.db.tables_count` is **4**. The `players` table and
-its nine fields work for the documented read-only scan and the position column;
-name lookup works
-through the three name tables. With external metadata, the tested session
-exposes the full 268-table metadata/live intersection. Scripts that require
-other tables must use external XML.
+With the embedded profile, `LE.db.tables_count` is **4**. The `players` table
+exposes the identity/position fields used by the read-only scan and the 52
+player fields verified in WP10; name lookup works through the three name tables.
+With external metadata, the tested session exposes the full 268-table
+metadata/live intersection. Scripts that require other tables must use external
+XML.
 
 ## Validation
 

@@ -608,6 +608,17 @@ pub static API_MATRIX: &[ApiEntry] = &[
         "Shown as a GUI modal/log event, not a native Win32 dialog."
     ),
     e!(
+        "FC27LE_EnsureDirectory",
+        "bool FC27LE_EnsureDirectory(string path)",
+        "bool",
+        "Lua state ready",
+        "filesystem",
+        SupportedTested,
+        "WP10 player-field and export helpers",
+        "lua_compat::player_fields::player_field_helpers_and_export_path_are_first_party",
+        "FC27LE extension, not a Live Editor API. Creates one directory selected by the script; no game memory or file writes."
+    ),
+    e!(
         "print",
         "void print(...)",
         "none",

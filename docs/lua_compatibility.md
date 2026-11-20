@@ -11,7 +11,7 @@ cargo run -p fc27-lua-compat --example matrix > docs/lua_compatibility.md
 
 | Status | Entries |
 | --- | ---: |
-| Supported and tested | 54 |
+| Supported and tested | 55 |
 | Partially supported | 5 |
 | Unimplemented / not applicable | 37 |
 | Requires further reverse engineering | 15 |
@@ -90,6 +90,7 @@ data, reports a fake event handler, or pretends a memory write occurred.
 | `LOGGER:LogError` | `void LogError(string)` | none | Lua state ready | ui | Supported and tested | wiki LOGGER | `lua_compat::tests::logger_print_messagebox_and_script_error` | GUI log only. |
 | `LOGGER:LogFatal` | `void LogFatal(string)` | none | Lua state ready | ui | Supported and tested | wiki LOGGER | `lua_compat::tests::logger_print_messagebox_and_script_error` | GUI log only. |
 | `MessageBox` | `void MessageBox(string title, string text)` | none | Lua state ready | ui | Supported and tested | wiki LUA-API | `lua_compat::tests::logger_print_messagebox_and_script_error` | Shown as a GUI modal/log event, not a native Win32 dialog. |
+| `FC27LE_EnsureDirectory` | `bool FC27LE_EnsureDirectory(string path)` | bool | Lua state ready | filesystem | Supported and tested | WP10 player-field and export helpers | `lua_compat::player_fields::player_field_helpers_and_export_path_are_first_party` | FC27LE extension, not a Live Editor API. Creates one directory selected by the script; no game memory or file writes. |
 | `print` | `void print(...)` | none | Lua state ready | ui | Supported and tested | Lua 5.4 | `lua_compat::tests::logger_print_messagebox_and_script_error` | Captured into the GUI log. |
 | `AddEventHandler` | `void AddEventHandler(string, function)` | error | Lua state ready | event | Requires further reverse engineering | wiki LUA-API-v2-Events | `lua_compat::tests::unsupported_events_and_memory_are_explicit` | No verified game-event source; raises an explicit error and registers nothing. |
 | `GetEventHandlers` | `Event[] GetEventHandlers(string)` | error | Lua state ready | event | Requires further reverse engineering | wiki Events | `lua_compat::tests::unsupported_events_and_memory_are_explicit` | No event registry is exposed. |

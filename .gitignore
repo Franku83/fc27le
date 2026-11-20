@@ -36,3 +36,11 @@ drive_c/
 
 # Release artifacts
 /dist/
+
+# Generated exports, temporary output and private script inputs
+SCOUTING_RESULTS_*.csv
+SEASON_STATS_*.csv
+*.tmp
+/private/
+/scripts/lua/private/
+/scripts/lua/tests/private/
